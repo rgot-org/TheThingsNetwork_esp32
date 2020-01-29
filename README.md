@@ -133,7 +133,7 @@ Returns the result of `sendBytes()`.
 
 ## Method: `provision`
 
-Sets the information needed to activate the device via OTAA, without actually activating. Call join() without the first 2 arguments to activate.
+Sets the informations needed to activate the device via OTAA, without actually activating. Call join() without the first 2 arguments to activate.
 
 ```c
 bool provision(const char *appEui, const char *appKey);
@@ -143,5 +143,26 @@ bool provision(const char *devEui, const char *appEui, const char *appKey);
 - `const char *appEui`: Application Identifier for the device.
 - `const char *appKey`: Application Key assigned to the device.
 - `const char *devEui`: Device EUI.
+## Method: `provisionABP`
+
+Sets the informations needed to activate the device via ABP, without actually activating. call `personalize()` without arguments to activate.
+```c
+bool provisionABP(const char *devAddr, const char *nwkSKey, const char *appSKey);
+```
+- `const char *devAddr`: Device Address.
+- `const char *nwkSKey`: Network Session Key.
+- `const char *appSKey`: Application Session Key.
+## Method: `saveKeys`
+Save the provisioning keys (OTAA and ABP) in Non Volatile Storage (NVS). 
+```c
+bool saveKeys();
+```
+## Method: `restoreKeys`
+Restore the keys from NVS and provisioning the informations for OTAA or ABP connection. Call `join()` or `Personalize()` after this method to activate the device.
+```c
+boobool restoreKeys(bool silent=true);
+```
+- `bool silent=true`: silent mode (no log)
+
 
 
