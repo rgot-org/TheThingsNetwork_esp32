@@ -28,7 +28,7 @@
 
 #define LMIC_DR_LEGACY 0
 
-#include "lmic/lmic.h"
+#include "lmic.h"
 
 extern const struct lmic_pinmap lmic_pins;
 
@@ -48,7 +48,7 @@ int os_init_ex (const void *pintable) {
 }
 
 void os_init() {
-	    if (os_init_ex((const void *)&lmic_pins))
+    if (os_init_ex((const void *)&lmic_pins))
         return;
     ASSERT(0);
 }

@@ -94,7 +94,7 @@
 
 // Enable this to use interrupt handler routines listening for RISING signals.
 // Otherwise, the library polls digital input lines for changes.
-//#define LMIC_USE_INTERRUPTS
+#define LMIC_USE_INTERRUPTS
 
 // If DISABLE_LMIC_FAILURE_TO is defined, runtime assertion failures
 // silently halt execution. Otherwise, LMIC_FAILURE_TO should be defined
@@ -197,6 +197,19 @@
 // timing too dramatically. But normal operation doesn't need this.
 #if !defined(LMIC_ENABLE_event_logging)
 # define LMIC_ENABLE_event_logging 0        /* PARAM */
+#endif
+
+// LMIC_LORAWAN_SPEC_VERSION
+#if !defined(LMIC_LORAWAN_SPEC_VERSION)
+# define LMIC_LORAWAN_SPEC_VERSION	LMIC_LORAWAN_SPEC_VERSION_1_0_3
+#endif
+
+// LMIC_ENABLE_arbitrary_clock_error
+// We normally don't want to allow users to set wide clock errors, because
+// we assume reasonably-disciplined os_getTime() values. But... there might
+// be platforms that require wider errors.
+#if !defined(LMIC_ENABLE_arbitrary_clock_error)
+# define LMIC_ENABLE_arbitrary_clock_error 0	/* PARAM */
 #endif
 
 #endif // _lmic_config_h_

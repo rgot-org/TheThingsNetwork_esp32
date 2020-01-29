@@ -30,7 +30,7 @@
 # define _lmic_eu_like_h_
 
 #ifndef _lmic_h_
-# include "lmic/lmic.h"
+# include "lmic.h"
 #endif
 
 // make sure we want US-like code

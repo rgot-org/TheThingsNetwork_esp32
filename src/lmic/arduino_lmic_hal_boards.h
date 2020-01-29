@@ -37,6 +37,9 @@ const HalPinmap_t *GetPinmap_Catena4801();
 const HalPinmap_t *GetPinmap_ttgo_lora32_v1 ();
 const HalPinmap_t *GetPinmap_heltec_wifi_lora_32();
 const HalPinmap_t *GetPinmap_heltec_wifi_lora_32_V2();
+const HalPinmap_t *GetPinmap_heltec_wireless_stick();
+const HalPinmap_t *GetPinmap_M5stack_Lora();
+const HalPinmap_t *GetPinmap_ttgo_TBEAM();
 
 const HalPinmap_t *GetPinmap_ThisBoard();
 

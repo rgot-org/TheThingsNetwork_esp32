@@ -28,8 +28,8 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _lorabase_as923_h_
-#define _lorabase_as923_h_
+#ifndef _lorabase_au915_h_
+#define _lorabase_au915_h_
 
 #ifndef _LMIC_CONFIG_PRECONDITIONS_H_
 # include "lmic_config_preconditions.h"
@@ -37,69 +37,53 @@
 
 /****************************************************************************\
 |
-| Basic definitions for AS923 (always in scope)
+| Basic definitions for AU 915 (always in scope)
 |
 \****************************************************************************/
 
-enum _dr_as923_t {
-        AS923_DR_SF12 = 0,
-        AS923_DR_SF11,
-        AS923_DR_SF10,
-        AS923_DR_SF9,
-        AS923_DR_SF8,
-        AS923_DR_SF7,
-        AS923_DR_SF7B,
-        AS923_DR_FSK,
-        AS923_DR_NONE
+// Frequency plan for AU 915 MHz
+enum _dr_au915_t {
+        AU915_DR_SF12 = 0,
+        AU915_DR_SF11,
+        AU915_DR_SF10,
+        AU915_DR_SF9,
+        AU915_DR_SF8,
+        AU915_DR_SF7,
+        AU915_DR_SF8C,
+        AU915_DR_NONE,
+        // Devices behind a router:
+        AU915_DR_SF12CR = 8,
+        AU915_DR_SF11CR,
+        AU915_DR_SF10CR,
+        AU915_DR_SF9CR,
+        AU915_DR_SF8CR,
+        AU915_DR_SF7CR
 };
 
-// Bands:
-//  g1 :   1%  16dBm
-//                 freq                band     datarates
+// Default frequency plan for AU 915MHz
 enum {
-        AS923_F1    = 923200000,      // g1   SF7-12
-        AS923_F2    = 923400000,      // g1   SF7-12
-        AS923_FDOWN = 923200000,      //      (RX2 freq, DR2)
-        AS923_FBCN  = 923400000,      //      default BCN, DR3
-        AS923_FPING = 923400000,      //      default ping, DR3
+        AU915_125kHz_UPFBASE = 915200000,
+        AU915_125kHz_UPFSTEP = 200000,
+        AU915_500kHz_UPFBASE = 915900000,
+        AU915_500kHz_UPFSTEP = 1600000,
+        AU915_500kHz_DNFBASE = 923300000,
+        AU915_500kHz_DNFSTEP = 600000
 };
 enum {
-        AS923_FREQ_MIN = 915000000,
-        AS923_FREQ_MAX = 928000000
+        AU915_FREQ_MIN = 915000000,
+        AU915_FREQ_MAX = 928000000
 };
 enum {
-        AS923_TX_EIRP_MAX_DBM = 16      // 16 dBm
+        AU915_TX_EIRP_MAX_DBM = 30      // 30 dBm
 };
-enum { DR_PAGE_AS923 = 0x10 * (LMIC_REGION_as923 - 1) };
-
-enum { AS923_LMIC_REGION_EIRP = 1 };         // region uses EIRP
-
-enum { AS923JP_LBT_US = 5000 };         // microseconds of LBT time -- 5000 ==>
-					// 5 ms. We use us rather than ms for
-					// future 128us support, and just for
-					// backward compatibility -- there
-					// is code that uses the _US constant,
-					// and it's awkward to break it.
-
-enum { AS923JP_LBT_DB_MAX = -80 };      // maximum channel strength in dB; if TX
-					// we measure more than this, we don't tx.
-
-// AS923 v1.1, all channels face a 1% duty cycle. So this will have to change
-// in the future via a config. But this code base needs major changes for
-// v1.1 in any case.
-enum { AS923_V102_TX_CAP = 100 };		// v1.0.2 allows 100%
-
-#ifndef AS923_TX_CAP
-# define AS923_TX_CAP	AS923_V102_TX_CAP
-#endif
-
-// TxParam defaults
 enum {
         // initial value of UplinkDwellTime before TxParamSetupReq received.
-        AS923_INITIAL_TxParam_UplinkDwellTime = 1,
-        // initial value of DownlinkDwellTime before TxParamSetupReq received.
-        AS923_INITIAL_TxParam_DownlinkDwellTime = 1,
-        AS923_UPLINK_DWELL_TIME_osticks = sec2osticks(20),
+        AU915_INITIAL_TxParam_UplinkDwellTime = 1,
+        AU915_UPLINK_DWELL_TIME_osticks = sec2osticks(20),
 };
 
-#endif /* _lorabase_as923_h_ */
+enum { DR_PAGE_AU915 = 0x10 * (LMIC_REGION_au915 - 1) };
+
+enum { AU915_LMIC_REGION_EIRP = 1 };         // region uses EIRP
+
+#endif /* _lorabase_au915_h_ */

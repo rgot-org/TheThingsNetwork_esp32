@@ -16,7 +16,7 @@ Description:
 
 */
 
-#include "lmic/lmic.h"
+#include "lmic.h"
 #include "lmic_compliance.h"
 #include "lorawan_spec_compliance.h"
 #include <stdbool.h>
@@ -54,8 +54,9 @@ static lmic_event_cb_t lmicEventCb;
 static lmic_txmessage_cb_t sendUplinkCompleteCb;
 static osjobcbfn_t timerExpiredCb;
 
-/* this is declared global so the optimizer can chuck it without warnings */
+/* these are declared global so the optimizer can chuck them without warnings */
 const char *LMICcompliance_txSuccessToString(int fSuccess);
+const char * LMICcompliance_fsmstate_getName(lmic_compliance_fsmstate_t state);
 
 /****************************************************************************\
 |
@@ -386,8 +387,6 @@ Returns:
 
 */
 
-static lmic_txmessage_cb_t evEchoCommandCb;
-
 static void evEchoCommand(
     const uint8_t *pMessage,
     size_t nMessage
@@ -439,7 +438,7 @@ Returns:
 
 */
 
-static const char * lmic_compliance_fsmstate_Getname(lmic_compliance_fsmstate_t state) {
+const char * LMICcompliance_fsmstate_getName(lmic_compliance_fsmstate_t state) {
     const char * const names[] = { LMIC_COMPLIANCE_FSMSTATE__NAMES };
 
     if ((unsigned) state >= sizeof(names)/sizeof(names[0]))
@@ -497,8 +496,8 @@ static void fsmEval(void) {
             // state change!
             LMIC_COMPLIANCE_PRINTF("%s: change state %s(%u) => %s(%u)\n",
                 __func__,
-                lmic_compliance_fsmstate_Getname(oldState), (unsigned) oldState,
-                lmic_compliance_fsmstate_Getname(newState), (unsigned) newState
+                LMICcompliance_fsmstate_getName(oldState), (unsigned) oldState,
+                LMICcompliance_fsmstate_getName(newState), (unsigned) newState
                 );
             fNewState = true;
             LMIC_Compliance.fsmState = newState;
@@ -754,6 +753,11 @@ static void acSendUplinkBuffer(void) {
         LMIC_COMPLIANCE_PRINTF("%s: queued %u bytes\n", __func__, LMIC_Compliance.uplinkSize);
     } else {
         LMIC_COMPLIANCE_PRINTF("%s: uplink %u bytes failed (error %d)\n", __func__, LMIC_Compliance.uplinkSize, eSend);
+        if (eSend == LMIC_ERROR_TX_NOT_FEASIBLE) {
+            // Reverse the increment of the downlink count. Needed for US compliance.
+            if (CFG_region == LMIC_REGION_us915)
+                --LMIC_Compliance.downlinkCount;
+        }
         LMIC_Compliance.eventflags |= LMIC_COMPLIANCE_EVENT_UPLINK_COMPLETE;
         fsmEval();
     }

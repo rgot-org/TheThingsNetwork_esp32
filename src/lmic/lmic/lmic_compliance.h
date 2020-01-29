@@ -25,7 +25,7 @@ extern "C"{
 #endif
 
 #ifndef _lmic_h_
-# include "lmic/lmic.h"
+# include "lmic.h"
 #endif
 
 #include <stdbool.h>
