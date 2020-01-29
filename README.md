@@ -83,7 +83,7 @@ bool join(const char *dev_eui, const char *app_eui, const char *app_key, int8_t 
 
 Returns `true` or `false` depending on whether it received confirmation that the activation was successful before the maximum number of attempts.
 
-Call the method without the first two arguments if the device's LoRa module comes with NVS stored values.
+Call the method without the first two arguments if the device's LoRa module is provisioned or comes with NVS stored values. See `provision`, `saveKeys` and `restoreKeys`
 
 ## Method: `personalize`
 
@@ -100,7 +100,7 @@ bool personalize();
 
 Returns `true` or `false` depending on whether the activation was successful.
 
-Call the method with no arguments if the device's LoRa module comes with NVS stored values.
+Call the method with no arguments if the device's LoRa module is provisioned or comes with NVS stored values. See `provisionABP`, `saveKeys` and `restoreKeys`
 
 See the [ttn_abp](https://github.com/rgot-org/TheThingsNetwork_esp32/tree/master/examples/ttn_abp) example.
 
