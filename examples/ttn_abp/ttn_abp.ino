@@ -1,9 +1,9 @@
 #include <TTN_esp32.h>
 #include <TTN_CayenneLPP.h>
 
-const char *devEui = "CHANGE_ME"; //changer avec de devEui TTN
-const char *appEui = "CHANGE_ME"; // changer avec le appEui TTN
-const char *appKey = "CHANGE_ME"; // changer avec le appKey TTN
+const char *devAddr = "CHANGE_ME";
+const char *NwkSKey = "CHANGE_ME";
+const char *AppSKey = "CHANGE_ME";
 
 TTN_esp32 ttn;
 TTN_CayenneLPP lpp;
@@ -12,6 +12,7 @@ void message(const uint8_t *payload, size_t size, uint8_t port)
 {
 	Serial.println("-- MESSAGE");
 	Serial.print("Received " + String(size) + " bytes on port " + String(port) + ":");
+
 	for (int i = 0; i < size; i++)
 	{
 		//Serial.print(" " + String(payload[i]));
@@ -26,13 +27,7 @@ void setup() {
 	Serial.println("Starting");
 	ttn.begin();
 	ttn.onMessage(message);// declare callback function when is downlink from server
-	ttn.join(devEui, appEui, appKey);
-	Serial.print("joining TTN ");
-	while (!ttn.joined()) {
-		Serial.print(".");
-		delay(500);
-	}
-	Serial.println("\njoined !");
+	ttn.personalize(devAddr, NwkSKey, AppSKey);
 	ttn.showStatus();
 }
 
