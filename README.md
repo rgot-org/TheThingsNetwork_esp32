@@ -27,6 +27,20 @@ return AppEui as an array of char
 String getAppEui();
 ```
 return AppEui as String
+## Method: `getDevEui`
+Gets the provisioned DevEUI. The DevEUI is set using `provision()` or `join()`.
+```c
+size_t getDevEui(char *buffer, size_t size, bool hardwareEUI=false);
+```
+return DevEUI as array of char
+```c
+String getDevEui(bool hardwareEui=false);
+```
+return DevEUI as String
+
+- `bool hardwareEui=false`: if true get DevEUI from Mac Address.
+
+
 ## Method: `showStatus`
 
 Writes information about the device and LoRa module to `Serial` .
