@@ -16,28 +16,28 @@ class TTN_esp32 : public Lorawan_esp32
 {
 public:
 	TTN_esp32();
-
-	bool haveKeys();
-	bool decodeKeys(const char *dev_eui, const char *app_eui, const char *app_key);
-	bool fromMAC(const char *app_eui, const char *app_key);
 	bool saveKeys();
-	bool restoreKeys(bool silent);
+	bool restoreKeys(bool silent=true);
+	bool haveKeys();
+	//bool decodeKeys(const char *dev_eui, const char *app_eui, const char *app_key);
+	//bool fromMAC(const char *app_eui, const char *app_key);	
 	size_t getAppEui(char *buffer, size_t size);
 	String getAppEui();
-	size_t getDevEui(char *buffer, size_t size);
-	String getDevEui(bool hardwareEui);
+	size_t getDevEui(char *buffer, size_t size, bool hardwareEui=false);
+	String getDevEui(bool hardwareEui=false);
 	bool provision(const char *appEui, const char *appKey);
 	bool provision(const char *devEui, const char *appEui, const char *appKey);
+	bool provisionABP(const char *devAddr, const char *nwkSKey, const char *appSKey);
 	bool join();
 	bool join(const char *app_eui, const char *app_key, int8_t retries = -1, uint32_t retryDelay = 10000);
 	bool join(const char *dev_eui, const char *app_eui, const char *app_key, int8_t retries = -1, uint32_t retryDelay = 10000);
 	bool personalize(const char *devAddr, const char *nwkSKey, const char *appSKey);
 	bool personalize();
-	//bool poll();
 	void showStatus();
-	void static onMessage(void(*cb)(const uint8_t *payload, size_t size, uint8_t port));
-	//bool sendBytes(uint8_t *payload, size_t length, uint8_t port = 1, uint8_t confirm = 0);
+	//void static onMessage(void(*cb)(const uint8_t *payload, size_t size, uint8_t port));
 private:
+
+	
 	bool decode(bool incl_dev_eui, const char *dev_eui, const char *app_eui, const char *app_key);
 	bool readNvsValue(nvs_handle handle, const char* key, uint8_t* data, size_t expected_length, bool silent);
 	bool writeNvsValue(nvs_handle handle, const char* key, const uint8_t* data, size_t len);

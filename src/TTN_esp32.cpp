@@ -15,10 +15,17 @@ static const char* const NVS_FLASH_PARTITION = "ttn";
 static const char* const NVS_FLASH_KEY_DEV_EUI = "devEui";
 static const char* const NVS_FLASH_KEY_APP_EUI = "appEui";
 static const char* const NVS_FLASH_KEY_APP_KEY = "appKey";
+static const char* const NVS_FLASH_KEY_APP_SESSION_KEY = "AppSKey";
+static const char* const NVS_FLASH_KEY_NWK_SESSION_KEY = "NwkSKey";
+static const char* const NVS_FLASH_KEY_DEV_ADDR = "devAddr";
+
 
 static uint8_t global_dev_eui[8];
 static uint8_t global_app_eui[8];
 static uint8_t global_app_key[16];
+static uint8_t global_appskey[16];
+static uint8_t global_nwkskey[16];
+static uint8_t global_deva[4];
 
 // --- LMIC callbacks
 
@@ -89,15 +96,36 @@ bool TTN_esp32::decode(bool incl_dev_eui, const char *dev_eui, const char *app_e
 	return true;
 }
 bool TTN_esp32::provision(const char *appEui, const char *appKey) {
-	fromMAC(appEui, appKey);
-	saveKeys();
+
+	uint8_t mac[6];
+	esp_err_t err = esp_efuse_mac_get_default(mac);
+	ESP_ERROR_CHECK(err);
+	global_dev_eui[7] = mac[0];
+	global_dev_eui[6] = mac[1];
+	global_dev_eui[5] = mac[2];
+	global_dev_eui[4] = 0xff;
+	global_dev_eui[3] = 0xfe;
+	global_dev_eui[2] = mac[3];
+	global_dev_eui[1] = mac[4];
+	global_dev_eui[0] = mac[5];
+#ifdef DEBUG
+	Serial.print("dev EUI: ");
+	for (size_t i = 0; i < 8; i++)
+	{
+		Serial.printf("%02X", global_dev_eui[7 - i]);
+	}
+	Serial.println();
+#endif // DEBUG
+
+	return decode(false, nullptr, appEui, appKey);
+	//saveKeys();
 }
 bool TTN_esp32::provision(const char *devEui, const char *appEui, const char *appKey) {
 	decode(true, devEui, appEui, appKey);
-	saveKeys();
+	//saveKeys();
 }
 bool TTN_esp32::join() {
-	restoreKeys(false);
+	//restoreKeys(false);
 	if (!haveKeys())
 	{
 		ESP_LOGW(TAG, "Device EUI, App EUI and/or App key have not been provided");
@@ -115,20 +143,36 @@ bool TTN_esp32::join(const char *dev_eui, const char *app_eui, const char *app_k
 }
 bool TTN_esp32::join(const char *app_eui, const char *app_key, int8_t retries, uint32_t retryDelay) {
 	//if(!provision(app_eui, app_key)) return false;
-	fromMAC(app_eui, app_key);
+	provision(app_eui, app_key);
 	return Lorawan_esp32::join();
 }
+bool TTN_esp32::provisionABP(const char *devAddr, const char *nwkSKey, const char *appSKey) {
+	hexStrToBin(nwkSKey, global_nwkskey, 16);
+	hexStrToBin(appSKey, global_appskey, 16);
+	hexStrToBin(devAddr, global_deva, 4);
+	//saveKeys();
+}
+bool TTN_esp32::personalize() {
+	//restoreKeys(false);
+	if (!isAllZeros(global_deva,sizeof(global_deva)) && !isAllZeros(global_nwkskey,sizeof(global_nwkskey)) && ! isAllZeros(global_appskey,sizeof(global_appskey)))
+	{
+		devaddr_t dev_addr = global_deva[0] << 24 | global_deva[1] << 16 | global_deva[2] << 8 | global_deva[3];
+		Lorawan_esp32::personalize(0x13, dev_addr, global_nwkskey, global_appskey);
+	}
+
+
+}
 bool TTN_esp32::personalize(const char *devAddr, const char *nwkSKey, const char *appSKey) {
-	uint8_t appskey[16];
-	uint8_t nwkskey[16];
-	uint8_t deva[4];
-	hexStrToBin(nwkSKey, nwkskey, 16);
-	hexStrToBin(appSKey, appskey, 16);
-	hexStrToBin(devAddr, deva, 4);
-	devaddr_t dev_addr = deva[0] << 24 | deva[1] << 16 | deva[2] << 8 | deva[3];
+
+	hexStrToBin(nwkSKey, global_nwkskey, 16);
+	hexStrToBin(appSKey, global_appskey, 16);
+	hexStrToBin(devAddr, global_deva, 4);
+	devaddr_t dev_addr = global_deva[0] << 24 | global_deva[1] << 16 | global_deva[2] << 8 | global_deva[3];
+#ifdef DEBUG
 	Serial.printf("str_deva: %s\n", devAddr);
 	Serial.printf("int_devaddr: %X\n", dev_addr);
-	Lorawan_esp32::personalize(0x13, dev_addr, nwkskey, appskey);
+#endif // DEBUG	
+	Lorawan_esp32::personalize(0x13, dev_addr, global_nwkskey, global_appskey);
 
 }
 
@@ -176,45 +220,40 @@ bool TTN_esp32::haveKeys()
 	return have_keys;
 }
 
-bool TTN_esp32::decodeKeys(const char *dev_eui, const char *app_eui, const char *app_key)
-{
-	return decode(true, dev_eui, app_eui, app_key);
-}
+//bool TTN_esp32::decodeKeys(const char *dev_eui, const char *app_eui, const char *app_key)
+//{
+//	return decode(true, dev_eui, app_eui, app_key);
+//}
 
-bool TTN_esp32::fromMAC(const char *app_eui, const char *app_key)
-{
-	uint8_t mac[6];
-	esp_err_t err = esp_efuse_mac_get_default(mac);
-	ESP_ERROR_CHECK(err);
-
-	global_dev_eui[7] = mac[0];
-	global_dev_eui[6] = mac[1];
-	global_dev_eui[5] = mac[2];
-	global_dev_eui[4] = 0xff;
-	global_dev_eui[3] = 0xfe;
-	global_dev_eui[2] = mac[3];
-	global_dev_eui[1] = mac[4];
-	global_dev_eui[0] = mac[5];
-#ifdef DEBUG
-	Serial.print("dev EUI: ");
-	for (size_t i = 0; i < 8; i++)
-	{
-		Serial.printf("%02X", global_dev_eui[7 - i]);
-	}
-	Serial.println();
-#endif // DEBUG
-
-	return decode(false, nullptr, app_eui, app_key);
-}
+//bool TTN_esp32::fromMAC(const char *app_eui, const char *app_key)
+//{
 //
-size_t TTN_esp32::getDevEui(char *buffer, size_t size) {
+//}
+//
+size_t TTN_esp32::getDevEui(char *buffer, size_t size, bool hardwareEUI) {
 	if (size < 8)	return 0;
 	uint8_t buf[8];
-	for (size_t i = 0; i < 8; i++) buf[i] = global_dev_eui[i];
-	swapBytes(buf, 8);
-	binToHexStr(buf, 8, buffer);
-	buffer[16] = '\0';
-	return 8;
+	if (hardwareEUI)
+	{
+		uint8_t mac[6];
+		esp_err_t err = esp_efuse_mac_get_default(mac);
+		ESP_ERROR_CHECK(err);
+		buf[7] = mac[0];
+		buf[6] = mac[1];
+		buf[5] = mac[2];
+		buf[4] = 0xff;
+		buf[3] = 0xfe;
+		buf[2] = mac[3];
+		buf[1] = mac[4];
+		buf[0] = mac[5];
+	}
+	else {
+		for (size_t i = 0; i < 8; i++) buf[i] = global_dev_eui[i];
+	}
+		swapBytes(buf, 8);
+		binToHexStr(buf, 8, buffer);
+		buffer[16] = '\0';
+		return 8;	
 }
 String TTN_esp32::getDevEui(bool hardwareEUI) {
 	char hexbuf[17] = { 0 };
@@ -265,10 +304,10 @@ String TTN_esp32::getAppEui() {
 //bool TTN_esp32::sendBytes(uint8_t *payload, size_t length, uint8_t port , uint8_t confirm ) {
 //	Lorawan_esp32::sendBytes(payload, length, port, confirm);
 //}
-void TTN_esp32::onMessage(void(*cb)(const uint8_t *payload, size_t size, uint8_t port))
-{
-	Lorawan_esp32::onMessage(cb);
-}
+//void TTN_esp32::onMessage(void(*cb)(const uint8_t *payload, size_t size, uint8_t port))
+//{
+//	Lorawan_esp32::onMessage(cb);
+//}
 
 // --- Non-volatile storage
 
@@ -296,6 +335,15 @@ bool TTN_esp32::saveKeys()
 
 	if (!writeNvsValue(handle, NVS_FLASH_KEY_APP_KEY, global_app_key, sizeof(global_app_key)))
 		goto done;
+
+	//ABP
+	if (!writeNvsValue(handle,NVS_FLASH_KEY_DEV_ADDR , global_deva , sizeof(global_deva)))
+		goto done;
+	if (!writeNvsValue(handle, NVS_FLASH_KEY_NWK_SESSION_KEY, global_nwkskey, sizeof(global_nwkskey)))
+		goto done;
+	if (!writeNvsValue(handle, NVS_FLASH_KEY_APP_SESSION_KEY, global_appskey, sizeof(global_appskey)))
+		goto done;
+
 
 	res = nvs_commit(handle);
 	ESP_ERROR_CHECK(res);
@@ -334,6 +382,13 @@ bool TTN_esp32::restoreKeys(bool silent)
 		goto done;
 
 	if (!readNvsValue(handle, NVS_FLASH_KEY_APP_KEY, buf_app_key, sizeof(global_app_key), silent))
+		goto done;
+
+	if (!readNvsValue(handle, NVS_FLASH_KEY_DEV_ADDR, global_deva, sizeof(global_deva),silent))
+		goto done;
+	if (!readNvsValue(handle, NVS_FLASH_KEY_NWK_SESSION_KEY, global_nwkskey, sizeof(global_nwkskey),silent))
+		goto done;
+	if (!readNvsValue(handle, NVS_FLASH_KEY_APP_SESSION_KEY, global_appskey, sizeof(global_appskey),silent))
 		goto done;
 
 	memcpy(global_dev_eui, buf_dev_eui, sizeof(global_dev_eui));
