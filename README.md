@@ -70,12 +70,12 @@ freq: 867100000Hz
 Sets a function which will be called to process incoming messages. You'll want to do this in your `setup()` function and then define a `void (*cb)(const byte* payload, size_t length, port_t port)` function somewhere else in your sketch.
 
 ```c
-void onMessage(void (*cb)(const uint8_t *payload, size_t size, uint8_t port));
+void onMessage(void (*cb)(const uint8_t *payload, size_t size, int rssi));
 ```
 
 - `const uint8_t* payload`: Bytes received.
 - `size_t size`: Number of bytes.
-- `uint8_t port`: The port addressed.
+- `int rssi`: the rssi in dB.
 
 See the [ttn-otaa](https://github.com/rgot-org/TheThingsNetwork_esp32/blob/master/examples/ttn-otaa/ttn-otaa.ino) example.
 
