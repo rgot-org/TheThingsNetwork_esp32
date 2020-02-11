@@ -17,7 +17,7 @@ uint8_t* Lorawan_esp32::_message = 0;
 uint8_t Lorawan_esp32::_length = 1;
 bool Lorawan_esp32::_joined = false;
 TaskHandle_t* Lorawan_esp32::TTN_task_Handle = NULL;
-void(*messageCallback)(const uint8_t *payload, size_t size, uint8_t port);
+void(*messageCallback)(const uint8_t *payload, size_t size, int rssi );
 
 
 //static AT_SettingsClass at;
@@ -255,7 +255,7 @@ void onEvent(ev_t ev) {
 			}
 			if (messageCallback)
 			{
-				messageCallback(downlink, LMIC.dataLen, LMIC.dataBeg - 1);
+				messageCallback(downlink, LMIC.dataLen, LMIC.rssi);
 			}
 
 		}
@@ -319,7 +319,7 @@ void onEvent(ev_t ev) {
 	}
 
 }
-void Lorawan_esp32::onMessage(void(*cb)(const uint8_t *payload, size_t size, uint8_t port))
+void Lorawan_esp32::onMessage(void(*cb)(const uint8_t *payload, size_t size, int rssi))
 {
 	messageCallback = cb;
 }

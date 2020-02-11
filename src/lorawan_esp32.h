@@ -29,7 +29,7 @@ class Lorawan_esp32
 	 void personalize(u4_t netID, u4_t DevAddr, uint8_t* NwkSKey, uint8_t* AppSKey);
 	 bool setDataRate(uint8_t DR = 7);
 	 static bool stopTNN(void);
-	 void static onMessage(void(*cb)(const uint8_t *payload, size_t size, uint8_t port));
+	 void static onMessage(void(*cb)(const uint8_t *payload, size_t size, int rssi));
 	 void setInterval(const unsigned TX_INTERVAL);
 	 static Lorawan_esp32 *GetInstance()
 	 {

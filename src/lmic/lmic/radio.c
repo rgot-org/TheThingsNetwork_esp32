@@ -1154,9 +1154,10 @@ u1_t radio_rand1 () {
     return v;
 }
 
-u1_t radio_rssi () {
+s2_t radio_rssi () {
     hal_disableIRQs();
-    u1_t r = readReg(LORARegRssiValue);
+    //u1_t r = readReg(LORARegRssiValue);
+	s2_t r = (s2_t) (0x00FF & (u2_t)readReg(LORARegRssiValue));
     hal_enableIRQs();
     return r;
 }
@@ -1316,7 +1317,8 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
 
             LMIC_X_DEBUG_PRINTF("RX snr=%u rssi=%d\n", LMIC.snr/4, rssi);
             // ugh compatibility requires a biased range. RSSI
-            LMIC.rssi = (s1_t) (RSSI_OFF + (rssi < -196 ? -196 : rssi > 63 ? 63 : rssi)); // RSSI [dBm] (-196...+63)
+            //LMIC.rssi = (s1_t) (RSSI_OFF + (rssi < -196 ? -196 : rssi > 63 ? 63 : rssi)); // RSSI [dBm] (-196...+63)
+			LMIC.rssi = radio_rssi() - 157 + RSSI_OFF; // use RSSI_OFF to compensate any loss
         } else if( flags & IRQ_LORA_RXTOUT_MASK ) {
             // indicate timeout
             LMIC.dataLen = 0;
