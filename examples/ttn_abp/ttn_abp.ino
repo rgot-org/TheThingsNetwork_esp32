@@ -2,8 +2,8 @@
 #include <TTN_CayenneLPP.h>
 
 const char *devAddr = "CHANGE_ME";
-const char *NwkSKey = "CHANGE_ME";
-const char *AppSKey = "CHANGE_ME";
+const char *nwkSKey = "CHANGE_ME";
+const char *appSKey = "CHANGE_ME";
 
 TTN_esp32 ttn;
 TTN_CayenneLPP lpp;
@@ -27,7 +27,7 @@ void setup() {
 	Serial.println("Starting");
 	ttn.begin();
 	ttn.onMessage(message);// declare callback function when is downlink from server
-	ttn.personalize(devAddr, NwkSKey, AppSKey);
+	ttn.personalize(devAddr, nwkSKey, appSKey);
 	ttn.showStatus();
 }
 
