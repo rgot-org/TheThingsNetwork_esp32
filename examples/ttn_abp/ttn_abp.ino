@@ -8,10 +8,10 @@ const char *AppSKey = "CHANGE_ME";
 TTN_esp32 ttn;
 TTN_CayenneLPP lpp;
 
-void message(const uint8_t *payload, size_t size, uint8_t port)
+void message(const uint8_t *payload, size_t size, int rssi)
 {
 	Serial.println("-- MESSAGE");
-	Serial.print("Received " + String(size) + " bytes on port " + String(port) + ":");
+	Serial.print("Received " + String(size) + " bytes RSSI= " + String(rssi) + ":");
 
 	for (int i = 0; i < size; i++)
 	{
