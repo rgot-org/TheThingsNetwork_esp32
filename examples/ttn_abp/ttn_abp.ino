@@ -1,5 +1,5 @@
 #include <TTN_esp32.h>
-#include <TTN_CayenneLPP.h>
+#include "TTN_CayenneLPP.h"
 
 const char *devAddr = "CHANGE_ME";
 const char *nwkSKey = "CHANGE_ME";
