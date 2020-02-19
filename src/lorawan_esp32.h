@@ -13,7 +13,6 @@
 #include "lmic/arduino_lmic_hal_boards.h"
 #include "lmic/lmic/oslmic.h"
 
-
 class Lorawan_esp32
 {
 public:
@@ -49,7 +48,7 @@ public:
     // port);
 
 protected:
-    bool ro = false;
+    bool have_keys = false;
 
 private:
     static Lorawan_esp32* _pLoRaWAN;
