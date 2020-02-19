@@ -49,7 +49,7 @@ public:
     // port);
 
 protected:
-    bool have_keys = false;
+    bool ro = false;
 
 private:
     static Lorawan_esp32* _pLoRaWAN;
