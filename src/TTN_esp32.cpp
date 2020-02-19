@@ -231,6 +231,7 @@ String TTN_esp32::getDevEui(bool hardwareEUI)
         uint8_t mac[6];
 
         esp_err_t err = esp_efuse_mac_get_default(mac);
+        ESP_ERROR_CHECK(err);
         binToHexStr(mac, 6, hexbuf);
         for (size_t i = 0; i < 6; i++)
         {
@@ -306,7 +307,7 @@ bool TTN_esp32::join()
     else
     {
         ESP_LOGW(TAG, "Device EUI, App EUI and/or App key have not been provided");
-        Serial.println("pas de cl�s");
+        Serial.println("No keys provided");
     }
     return success;
 }
