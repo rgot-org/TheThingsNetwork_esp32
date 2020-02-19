@@ -27,7 +27,7 @@ void (*messageCallback)(const uint8_t* payload, size_t size, int rssi);
 // void ttn_provisioning_task_caller(void* pvParameter);
 //#endif
 static osjob_t sendjob;
-static osjobcb_t sendMsg;
+// static osjobcb_t sendMsg;
 // --- Constructor
 
 Lorawan_esp32::Lorawan_esp32() {}
@@ -137,7 +137,9 @@ void Lorawan_esp32::txMessage(osjob_t* j)
     }
 #ifdef DEBUG
     else
-        Serial.println("pas de jonction au reseau");
+    {
+        Serial.println("Not connected/joined to TTN");
+    }
 #endif // DEBUG
 }
 
@@ -145,12 +147,13 @@ String Lorawan_esp32::getMac()
 {
     uint8_t mac[6];
     esp_err_t err = esp_efuse_mac_get_default(mac);
+    ESP_ERROR_CHECK(err);
     char buf[20];
     for (size_t i = 0; i < 5; i++)
     {
         sprintf(buf + (3 * i), "%02X:", mac[i]);
     }
-    sprintf(buf + (3 * 5), "%02X:", mac[5]);
+    sprintf(buf + (3 * 5), "%02X", mac[5]);
 
     return String(buf);
 }
