@@ -4,6 +4,8 @@ The `TTN_esp32` class enables ESP32 devices with supported LoRaWAN modules to co
  
  - HELTEC Wifi Lora 32 (V1 & V2)
  - HELTEC Wireless Stick
+# Configuration
+Like MCCI-Catena/arduino-lmic library the configuration is setup by editing `project_config/lmic_project_config.h`. See https://github.com/mcci-catena/arduino-lmic#configuration for more informations
 
 ## Class: `TTN_esp32`
 
@@ -14,7 +16,39 @@ Include and instantiate the TTN_esp32 class. The constructor initialize the libr
 
 TTN_esp32 ttn;
 ```
+## Method: `begin`
 
+Start the LMIC stack with Pre-integrated boards (see https://github.com/mcci-catena/arduino-lmic#pre-integrated-boards) 
+
+Following boards are tested :
+ - HELTEC WIRELESS STICK
+ - HELTEC WIFI LORA 32 V1
+ - HELTEC WIFI LORA 32 V2
+
+ 
+```c
+void begin();
+```
+Initialize the stack with pointer to pin mapping (see https://github.com/mcci-catena/arduino-lmic#pin-mapping)
+```c
+bool begin(const TTN_esp32_LMIC::HalPinmap_t* pPinmap);
+```
+Initialize the LMIC stack with pinout as arguments
+```c
+void begin(uint8_t nss, uint8_t rxtx, uint8_t rst, uint8_t dio0, uint8_t dio1, uint8_t dio2);
+```
+Example for HELTEC WIRELESS STICK
+```c
+// wireless stick pinout
+#define UNUSED_PIN 0xFF
+#define SS 18
+#define RST_LoRa 14
+#define DIO0 26
+#define DIO1 33
+#define DIO2 32
+...
+ttn.begin(SS, UNUSED_PIN, RST_LoRa, DIO0,DIO1,DIO2);
+```
 ## Method: `getAppEui`
 
 Gets the provisioned AppEUI. The AppEUI is set using `provision()` or `join()`.
