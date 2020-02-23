@@ -34,7 +34,7 @@ void setup()
                              // messages from server
     ttn->join(devEui, appEui, appKey);
     Serial.print("Joining TTN ");
-    while (!ttn->joined())
+    while (!ttn->isJoined())
     {
         Serial.print(".");
         delay(500);
