@@ -11,19 +11,230 @@
 
 #endif
 
-#include "lorawan_esp32.h"
-#include "nvs_flash.h"
-
+#include "lmic/arduino_lmic_hal_boards.h"
+#include "lmic/lmic.h"
 #include "lmic/lmic/oslmic.h"
 
-class TTN_esp32 : public Lorawan_esp32
+class TTN_esp32
 {
 public:
     ///
-    /// Default constructor
-    /// Silently tries to restore the keys
+    /// Get the instance of TTN_esp32
     ///
-    TTN_esp32();
+    /// @return The singleton instance of TTN_esp32
+    ///
+    static TTN_esp32* getInstance()
+    {
+        Serial.println("[TTN_esp32] getInstance");
+        if (instance == 0)
+        {
+            Serial.println("[TTN_esp32] creating instance");
+            instance = new TTN_esp32();
+        }
+        return instance;
+    }
+
+    ///
+    /// Start the LMIC stack with Pre-integrated boards
+    ///
+    /// @return True if the radio has been initialised, false if not
+    ///
+    bool begin();
+
+    ///
+    /// Initialize the LMIC stack with pinout as arguments
+    ///
+    /// @param nss The pin for chip select
+    /// @param rxtx The pin for rx/tx control
+    /// @param rst The pin for reset
+    /// @param dio0 The DIO0 pin
+    /// @param dio1 The DOI1 pin
+    /// @param dio2 The DIO2 pin
+    /// @return True if the radio has been initialised, false if not
+    ///
+    bool begin(uint8_t nss, uint8_t rxtx, uint8_t rst, uint8_t dio0, uint8_t dio1, uint8_t dio2);
+
+    ///
+    /// Initialize the stack with pointer to pin mapping
+    ///
+    /// @param pPinmap A pointer to the HalPinmap_t object
+    /// @return True if the radio has been initialised, false if not
+    ///
+    bool begin(const TTN_esp32_LMIC::HalPinmap_t* pPinmap);
+
+    ///
+    /// Provision the Application EUI and Application key
+    /// @param appEui The Application EUI in MSB order
+    /// @param appKey The Application key in MSB order
+    /// @return True on success, false if not
+    ///
+    bool provision(const char* appEui, const char* appKey);
+
+    ///
+    /// Provision the Application EUI, Application key and Device EUI
+    /// @param devEui The Device EUI in MSB order
+    /// @param appEui The Application EUI in MSB order
+    /// @param appKey The Application key in MSB order
+    /// @return True on success, false if not
+    ///
+    bool provision(const char* devEui, const char* appEui, const char* appKey);
+
+    ///
+    /// Provision the Device address, Network key and Application key
+    /// @param devAddr The Device address in MSB order
+    /// @param nwkSKey The Network session key in MSB order
+    /// @param appSKey The Application session key in MSB order
+    /// @return True on success, false if not
+    ///
+    bool provisionABP(const char* devAddr, const char* nwkSKey, const char* appSKey);
+
+    ///
+    /// Join the TTN
+    ///
+    /// Will check whether the keys are provided, if not try to load them from
+    /// non volatile memory and if present join the network
+    /// @return True if keys are present and join started, false if not
+    ///
+    bool join();
+
+    ///
+    /// Join the TTN
+    ///
+    /// Will provision the keys and join the network
+    /// \note {
+    ///		retries and retryDelay are not yet implemented
+    /// }
+    /// @param appEui The Application EUI in MSB order
+    /// @param appKey The Application key in MSB order
+    /// @param force Force the provisioning
+    /// @param retries The number of retries until timeout
+    /// @param retryDelay The delay in milliseconds between each retry
+    ///
+    bool join(
+        const char* appEui, const char* appKey, bool force = false, int8_t retries = -1, uint32_t retryDelay = 10000);
+
+    ///
+    /// Join the TTN
+    ///
+    /// Will provision the keys and join the network
+    /// \note {
+    ///		retries and retryDelay are not yet implemented
+    /// }
+    /// @param devEui The Device EUI in MSB order
+    /// @param appEui The Application EUI in MSB order
+    /// @param appKey The Application key in MSB order
+    /// @param force Force the provisioning
+    /// @param retries The number of retries until timeout
+    /// @param retryDelay The delay in milliseconds between each retry
+    ///
+    bool join(const char* devEui, const char* appEui, const char* appKey, bool force = false, int8_t retries = -1,
+        uint32_t retryDelay = 10000);
+
+    ///
+    /// Activate the device via ABP.
+    ///
+    /// @return True if the activation was successful, false if not
+    ///
+    bool personalize();
+
+    ///
+    /// Activate the device via ABP.
+    ///
+    /// @param devAddr Device address assigned to the device
+    /// @param nwkSKey Network session key assigned to the device for identification
+    /// @param appSKey Application session key assigned to the device for encryption
+    /// @return True if the activation was successful, false if not
+    ///
+    bool personalize(const char* devAddr, const char* nwkSKey, const char* appSKey);
+
+    ///
+    /// Send a message to the application using raw bytes.
+    ///
+    /// @param payload The payload to send
+    /// @param length The size of the payload, use sizeof(payload)
+    /// @param port The optional port to address, default 1
+    /// @param confirm Whether to ask for confirmation, default 0(false)
+    ///
+    bool sendBytes(uint8_t* payload, size_t length, uint8_t port = 1, uint8_t confirm = 0);
+
+    ///
+    /// Send a message to the application at an interval using raw bytes.
+    ///
+    /// \note {Currently not implemented, only sends once}
+    ///
+    /// @param payload The payload to send
+    /// @param length The size of the payload, use sizeof(payload)
+    /// @param interval The interval in seconds to send at
+    /// @param port The optional port to address, default 1
+    /// @param confirm Whether to ask for confirmation, default 0(false)
+    ///
+    void sendBytesAtInterval(
+        uint8_t* payload, size_t length, unsigned interval = 60, uint8_t port = 1, uint8_t confirm = 0);
+
+    ///
+    /// Poll for incoming messages
+    ///
+    /// Calls sendBytes() with { 0x00 } as payload.
+    ///
+    /// @param port The port to address, default 1
+    /// @param confirm Whether to ask for confirmation, default 0(false)
+    /// @return True on success, false if not
+    ///
+    bool poll(uint8_t port = 1, uint8_t confirm = 0);
+
+    ///
+    /// Stops the TTN task, which runs the stack
+    ///
+    /// @return True if task was stopped
+    ///
+    bool stopTNN(void);
+
+    ///
+    /// Sets a function which will be called to process incoming messages
+    ///
+    /// You'll want to do this in your setup() function and then define a void (*callback)(const byte* payload, size_t
+    /// length, port_t port) function somewhere else in your sketch.
+    ///
+    /// @param callback The callback which gets called
+    ///
+    void onMessage(void (*callback)(const uint8_t* payload, size_t size, int rssi));
+
+    ///
+    /// Check whether we have joined TTN
+    /// @return True when joined, false if not
+    ///
+    bool isJoined();
+
+    ///
+    /// Check whether the Device address, Network session key and Application session key
+    /// are present
+    ///
+    bool hasSession();
+
+    //
+    /// Store the current session so we don't need to join the network next time.
+    ///
+    /// Stores the device address, network session key and application router session key
+    /// @param deviceAddress The device address
+    /// @param networkSessionKey The network session key
+    /// @param applicationRouterSessionKey The application router session key
+    ///
+    bool storeSession(devaddr_t deviceAddress, u1_t networkSessionKey[16], u1_t applicationRouterSessionKey[16]);
+
+    ///
+    /// Deletes the current session from NVM
+    ///
+    /// Removes the device address, network session key and application session key from NVM
+    ///
+    void deleteSession();
+
+    ///
+    /// Check whether the Device EUI, Application EUI and Application key
+    /// are present
+    ///
+    /// @return True if provisioned, false if not
+    ///
+    bool isProvisioned();
 
     ///
     /// Store the Device EUI, Application EUI, Application key,
@@ -39,8 +250,44 @@ public:
     /// @param silent Set to false for debug output
     ///
     bool restoreKeys(bool silent = true);
-    // bool decodeKeys(const char *dev_eui, const char *app_eui, const char
-    // *app_key); bool fromMAC(const char *app_eui, const char *app_key);
+
+    //
+    /// Store the current sequence number
+    ///
+    /// @param sequenceNumber The sequence number
+    ///
+    bool storeSequenceNumberUp(uint32_t sequenceNumber);
+
+    ///
+    /// Show the current status
+    ///
+    /// Prints the current status to the serial console
+    /// Included are Device EUI, Application EUI, netId, Device address, Network
+    /// session key, Application session key, data rate, tx power and frequency
+    ///
+    void showStatus();
+
+    ///
+    /// Get the currently used data rate
+    ///
+    /// @return The data rate
+    uint8_t getDatarate();
+
+    ///
+    /// Set the data rate of the radio
+    ///
+    /// @return True if data rate was set, false if not
+    ///
+    bool setDataRate(uint8_t rate = 7);
+
+    ///
+    /// Set the interval at which to send cyclic data
+    ///
+    /// \note {You must call \ref sendBytesAtInterval first, otherwise this will have no effect}
+    ///
+    /// @param interval The interval to set
+    ///
+    void setTXInterval(const unsigned interval);
 
     ///
     /// Copy the Application EUI into the given buffer
@@ -73,97 +320,94 @@ public:
     String getDevEui(bool hardwareEui = false);
 
     ///
-    /// Provision the Application EUI and Application key
-    /// @param appEui The Application EUI in MSB order
-    /// @param appKey The Application key in MSB order
-    /// @return True on success, false if not
+    /// Get the MAC address of the ESP
     ///
-    bool provision(const char* appEui, const char* appKey);
+    /// @return The MAC address in Colon-Hexadecimal notation
+    ///
+    static String getMac();
 
     ///
-    /// Provision the Application EUI, Application key and Device EUI
-    /// @param devEui The Device EUI in MSB order
-    /// @param appEui The Application EUI in MSB order
-    /// @param appKey The Application key in MSB order
-    /// @return True on success, false if not
+    /// Get the currently used port that is addressed
     ///
-    bool provision(const char* devEui, const char* appEui, const char* appKey);
+    /// @return The port
+    ///
+    uint8_t getPort() { return _port; }
 
     ///
-    /// Provision the Device address, Network key and Application key
-    /// @param devAddr The Device address in MSB order
-    /// @param nwkSKey The Network key in MSB order
-    /// @param appSKey The Application Key in MSB order
-    /// @return True on success, false if not
+    /// Get the currently used frequency in Hz
     ///
-    bool provisionABP(const char* devAddr, const char* nwkSKey, const char* appSKey);
+    /// @return The frequency
+    uint32_t getFrequency();
 
     ///
-    /// Join the TTN
+    /// Get the currently used transmit power in dB
     ///
-    /// Will check whether the keys are provided, if not try to load them from
-    /// non volatile memory and if present join the network
-    /// @return True if keys are present and join started, false if not
-    ///
-    bool join();
-
-    ///
-    /// Join the TTN
-    ///
-    /// Will provision the keys and join the network
-    /// \note {
-    ///		retries and retryDelay are not yet implemented
-    /// }
-    /// @param appEui The Application EUI in MSB order
-    /// @param appKey The Application key in MSB order
-    /// @param retries The number of retries until timeout
-    /// @param retryDelay The delay in milliseconds between each retry
-    ///
-    bool join(const char* appEui, const char* appKey, int8_t retries = -1, uint32_t retryDelay = 10000);
-
-    ///
-    /// Join the TTN
-    ///
-    /// Will provision the keys and join the network
-    /// \note {
-    ///		retries and retryDelay are not yet implemented
-    /// }
-    /// @param devEui The Device EUI in MSB order
-    /// @param appEui The Application EUI in MSB order
-    /// @param appKey The Application key in MSB order
-    /// @param retries The number of retries until timeout
-    /// @param retryDelay The delay in milliseconds between each retry
-    ///
-    bool join(
-        const char* devEui, const char* appEui, const char* appKey, int8_t retries = -1, uint32_t retryDelay = 10000);
-
-    bool personalize();
-
-    bool personalize(const char* devAddr, const char* nwkSKey, const char* appSKey);
-
-    ///
-    /// Show the current status
-    ///
-    /// Prints the current status to the serial console
-    /// Included are Device EUI, Application EUI, netId, Device address, Network
-    /// session key, Application session key, data rate, tx power and frequency
-    ///
-    void showStatus();
-    // void static onMessage(void(*cb)(const uint8_t *payload, size_t size,
-    // uint8_t port));
+    /// @return The transmit power
+    int8_t getTXPower();
 
 private:
-    bool decode(bool incl_dev_eui, const char* devEui, const char* appEui, const char* appKey);
-    bool readNvsValue(nvs_handle handle, const char* key, uint8_t* data, size_t expected_length, bool silent);
-    bool writeNvsValue(nvs_handle handle, const char* key, const uint8_t* data, size_t len);
+    ///
+    /// Default constructor
+    /// Silently tries to restore the keys
+    /// private since this is a singleton
+    ///
+    TTN_esp32();
+    bool txBytes(uint8_t* payload, size_t length, uint8_t port, uint8_t confirm);
+    void txMessage(osjob_t* j);
+    void personalize(u4_t netID, u4_t DevAddr, uint8_t* NwkSKey, uint8_t* AppSKey);
+    bool decode(bool includeDevEui, const char* devEui, const char* appEui, const char* appKey);
     void checkKeys();
-    static bool hexStrToBin(const char* hex, uint8_t* buf, int len);
-    static int hexTupleToByte(const char* hex);
-    static int hexDigitToVal(char ch);
-    static void binToHexStr(const uint8_t* buf, int len, char* hex);
-    static char valToHexDigit(int val);
-    static void swapBytes(uint8_t* buf, int len);
-    static bool isAllZeros(const uint8_t* buf, int len);
+    static void loopStack(void* parameter);
+
+    ///
+    /// LMIC callback for getting the application key
+    ///
+    /// This is a friend so the function can access the private variables of this class so it can be declared globally
+    ///
+    friend void os_getDevKey(xref2u1_t buf);
+    ///
+    /// LMIC callback for getting the application EUI
+    ///
+    /// This is a friend so the function can access the private variables of this class so it can be declared globally
+    ///
+    friend void os_getArtEui(xref2u1_t buf);
+    ///
+    /// LMIC callback for getting the device EUI
+    ///
+    /// This is a friend so the function can access the private variables of this class so it can be declared globally
+    ///
+    friend void os_getDevEui(xref2u1_t buf);
+    ///
+    /// LMIC callback for events
+    ///
+    /// This is a friend so the function can access the private variables of this class so it can be declared globally
+    ///
+    friend void onEvent(ev_t ev);
+
+public:
+    void (*messageCallback)(const uint8_t* payload, size_t size, int rssi) = NULL;
+
+protected:
+    uint8_t dev_eui[8];
+    uint8_t app_eui[8];
+    uint8_t app_key[16];
+    uint8_t app_session_key[16];
+    uint8_t net_session_key[16];
+    uint8_t dev_adr[4];
+    uint32_t sequenceNumberUp;
+    bool joined;
+
+private:
+    bool provisioned;
+    bool session;
+    TaskHandle_t* TTN_task_Handle;
+    uint8_t* _message;
+    uint8_t _length;
+    uint8_t _port;
+    uint8_t _confirm;
+
+private:
+    static TTN_esp32* instance;
 };
 
 #endif
