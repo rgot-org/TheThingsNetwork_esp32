@@ -1,7 +1,10 @@
 #include <TTN_esp32.h>
 
 #include "TTN_CayenneLPP.h"
-
+/***************************************************************************
+*  Go to your TTN console register a device then the copy fields 
+*  and replace the CHANGE_ME strings below
+****************************************************************************/
 const char *devAddr = "CHANGE_ME"; // Change to TTN Device Address
 const char *nwkSKey = "CHANGE_ME"; // Change to TTN Network Session Key
 const char *appSKey = "CHANGE_ME"; // Change to TTN Application Session Key
