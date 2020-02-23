@@ -44,8 +44,8 @@ Example for HELTEC WIRELESS STICK
 #define SS 18
 #define RST_LoRa 14
 #define DIO0 26
-#define DIO1 33
-#define DIO2 32
+#define DIO1 35
+#define DIO2 34
 ...
 ttn.begin(SS, UNUSED_PIN, RST_LoRa, DIO0,DIO1,DIO2);
 ```

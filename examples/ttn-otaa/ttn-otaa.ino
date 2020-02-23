@@ -2,9 +2,9 @@
 
 #include "TTN_CayenneLPP.h"
 
-// const char *devEui = "CHANGE_ME"; // Change to TTN Device EUI
-// const char *appEui = "CHANGE_ME"; // Change to TTN Application EUI
-// const char *appKey = "CHANGE_ME"; // Chaneg to TTN Application Key
+const char *devEui = "CHANGE_ME"; // Change to TTN Device EUI
+const char *appEui = "CHANGE_ME"; // Change to TTN Application EUI
+const char *appKey = "CHANGE_ME"; // Chaneg to TTN Application Key
 
 TTN_esp32 ttn;
 TTN_CayenneLPP lpp;

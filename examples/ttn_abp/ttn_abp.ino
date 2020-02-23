@@ -2,9 +2,9 @@
 
 #include "TTN_CayenneLPP.h"
 
-// const char *devAddr = "CHANGE_ME"; // Change to TTN Device Address
-// const char *nwkSKey = "CHANGE_ME"; // Change to TTN Network Session Key
-// const char *appSKey = "CHANGE_ME"; // Change to TTN Application Session Key
+const char *devAddr = "CHANGE_ME"; // Change to TTN Device Address
+const char *nwkSKey = "CHANGE_ME"; // Change to TTN Network Session Key
+const char *appSKey = "CHANGE_ME"; // Change to TTN Application Session Key
 
 TTN_esp32 ttn;
 TTN_CayenneLPP lpp;
