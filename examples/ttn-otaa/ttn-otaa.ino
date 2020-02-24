@@ -29,18 +29,18 @@ void setup()
 {
     Serial.begin(115200);
     Serial.println("Starting");
-    ttn->begin();
-    ttn->onMessage(message); // Declare callback function for handling downlink
-                             // messages from server
-    ttn->join(devEui, appEui, appKey);
+    ttn.begin();
+    ttn.onMessage(message); // Declare callback function for handling downlink
+                            // messages from server
+    ttn.join(devEui, appEui, appKey);
     Serial.print("Joining TTN ");
-    while (!ttn->isJoined())
+    while (!ttn.isJoined())
     {
         Serial.print(".");
         delay(500);
     }
     Serial.println("\njoined !");
-    ttn->showStatus();
+    ttn.showStatus();
 }
 
 void loop()
@@ -49,7 +49,7 @@ void loop()
     nb += 0.1;
     lpp.reset();
     lpp.addTemperature(1, nb);
-    if (ttn->sendBytes(lpp.getBuffer(), lpp.getSize()))
+    if (ttn.sendBytes(lpp.getBuffer(), lpp.getSize()))
     {
         Serial.printf("Temp: %f TTN_CayenneLPP: %d %x %02X%02X\n", nb, lpp.getBuffer()[0], lpp.getBuffer()[1],
             lpp.getBuffer()[2], lpp.getBuffer()[3]);

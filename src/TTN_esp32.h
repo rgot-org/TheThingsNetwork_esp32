@@ -15,6 +15,8 @@
 #include "lmic/lmic.h"
 #include "lmic/lmic/oslmic.h"
 
+#define DEBUG
+
 class TTN_esp32
 {
 public:
@@ -23,16 +25,12 @@ public:
     ///
     /// @return The singleton instance of TTN_esp32
     ///
-    static TTN_esp32* getInstance()
-    {
-        Serial.println("[TTN_esp32] getInstance");
-        if (instance == 0)
-        {
-            Serial.println("[TTN_esp32] creating instance");
-            instance = new TTN_esp32();
-        }
-        return instance;
-    }
+    static TTN_esp32& getInstance();
+
+    ///
+    /// Disallow copying
+    ///
+    TTN_esp32(const TTN_esp32& ref) = delete;
 
     ///
     /// Start the LMIC stack with Pre-integrated boards
@@ -200,10 +198,35 @@ public:
     void onMessage(void (*callback)(const uint8_t* payload, size_t size, int rssi));
 
     ///
+    /// Sets a function which will be called upon LMIC events occur
+    ///
+    /// It will get called after the internal handling of the event
+    ///
+    /// @param callback The callback which gets called
+    ///
+    void onEvent(void (*callback)(const ev_t event));
+
+    ///
     /// Check whether we have joined TTN
     /// @return True when joined, false if not
     ///
     bool isJoined();
+
+    ///
+    /// Check whether LMIC stack is trasnmitting or receiving
+    ///
+    /// @return True if so, false if not
+    ///
+    bool isTransceiving();
+
+    ///
+    /// Wait until all pending transactions have been handled
+    ///
+    /// Busy wait using delay
+    ///
+    /// @return The number of milliseconds we have waited
+    ///
+    uint32_t waitForPendingTransactions();
 
     ///
     /// Check whether the Device address, Network session key and Application session key
@@ -331,7 +354,7 @@ public:
     ///
     /// @return The port
     ///
-    uint8_t getPort() { return _port; }
+    uint8_t getPort();
 
     ///
     /// Get the currently used frequency in Hz
@@ -358,6 +381,8 @@ private:
     bool decode(bool includeDevEui, const char* devEui, const char* appEui, const char* appKey);
     void checkKeys();
     static void loopStack(void* parameter);
+    void (*messageCallback)(const uint8_t* payload, size_t size, int rssi) = NULL;
+    void (*eventCallback)(const ev_t event) = NULL;
 
     ///
     /// LMIC callback for getting the application key
@@ -383,9 +408,6 @@ private:
     /// This is a friend so the function can access the private variables of this class so it can be declared globally
     ///
     friend void onEvent(ev_t ev);
-
-public:
-    void (*messageCallback)(const uint8_t* payload, size_t size, int rssi) = NULL;
 
 protected:
     uint8_t dev_eui[8];

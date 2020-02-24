@@ -14,7 +14,6 @@
 #include "lmic/lmic/lmic.h"
 
 #define LOOP_TTN_MS 1
-#define DEBUG
 
 static unsigned TX_INTERVAL = 0;
 static bool cyclique = false;
@@ -30,13 +29,13 @@ TTN_esp32* TTN_esp32::instance = 0;
 // The order is swapped in provisioning_decode_keys().
 void os_getArtEui(u1_t* buf)
 {
-    memcpy(buf, TTN_esp32::getInstance()->app_eui, 8);
+    memcpy(buf, TTN_esp32::getInstance().app_eui, 8);
 }
 
 // This should also be in little endian format, see above.
 void os_getDevEui(u1_t* buf)
 {
-    memcpy(buf, TTN_esp32::getInstance()->dev_eui, 8);
+    memcpy(buf, TTN_esp32::getInstance().dev_eui, 8);
 }
 
 // This key should be in big endian format (or, since it is not really a number
@@ -44,12 +43,21 @@ void os_getDevEui(u1_t* buf)
 // taken from ttnctl can be copied as-is.
 void os_getDevKey(u1_t* buf)
 {
-    memcpy(buf, TTN_esp32::getInstance()->app_key, 16);
+    memcpy(buf, TTN_esp32::getInstance().app_key, 16);
 }
 
 /************
  * Public
  ************/
+
+TTN_esp32& TTN_esp32::getInstance()
+{
+    if (instance == 0)
+    {
+        instance = new TTN_esp32();
+    }
+    return *instance;
+}
 
 // --- Constructor
 TTN_esp32::TTN_esp32()
@@ -268,9 +276,30 @@ void TTN_esp32::onMessage(void (*callback)(const uint8_t* payload, size_t size, 
     messageCallback = callback;
 }
 
+void TTN_esp32::onEvent(void (*callback)(const ev_t event))
+{
+    eventCallback = callback;
+}
+
 bool TTN_esp32::isJoined()
 {
     return joined;
+}
+
+bool TTN_esp32::isTransceiving()
+{
+    return LMIC.opmode & OP_TXRXPEND;
+}
+
+uint32_t TTN_esp32::waitForPendingTransactions()
+{
+    uint32_t waited = 0;
+    while (isTransceiving())
+    {
+        waited += 100;
+        delay(100);
+    }
+    return waited;
 }
 
 bool TTN_esp32::hasSession()
@@ -598,6 +627,11 @@ String TTN_esp32::getMac()
     return String(buf);
 }
 
+uint8_t TTN_esp32::getPort()
+{
+    return _port;
+}
+
 uint32_t TTN_esp32::getFrequency()
 {
     return LMIC.freq;
@@ -633,7 +667,6 @@ void TTN_esp32::txMessage(osjob_t* j)
     if (joined)
     {
         // Check if there is not a current TX/RX job running
-
         if (LMIC.opmode & OP_TXRXPEND)
         {
 #ifdef DEBUG
@@ -774,15 +807,15 @@ void TTN_esp32::loopStack(void* parameter)
     }
 }
 
-void onEvent(ev_t ev)
+void onEvent(ev_t event)
 {
-    TTN_esp32* ttn = TTN_esp32::getInstance();
+    TTN_esp32& ttn = TTN_esp32::getInstance();
 #ifdef DEBUG
     Serial.print(os_getTime());
     Serial.print(": ");
 #endif // DEBUG
 
-    switch (ev)
+    switch (event)
     {
     case EV_SCAN_TIMEOUT:
 #ifdef DEBUG
@@ -805,7 +838,7 @@ void onEvent(ev_t ev)
 #endif // DEBUG
         break;
     case EV_JOINING:
-        ttn->joined = false;
+        ttn.joined = false;
 #ifdef DEBUG
         Serial.println(F("EV_JOINING"));
 #endif // DEBUG
@@ -817,7 +850,7 @@ void onEvent(ev_t ev)
         u1_t nwkKey[16];
         u1_t artKey[16];
         LMIC_getSessionKeys(&netid, &devaddr, nwkKey, artKey);
-        ttn->storeSession(devaddr, nwkKey, artKey);
+        ttn.storeSession(devaddr, nwkKey, artKey);
 #ifdef DEBUG
         Serial.println(F("EV_JOINED"));
         Serial.print("netid: ");
@@ -837,7 +870,7 @@ void onEvent(ev_t ev)
         }
 #endif // DEBUG
     }
-        ttn->joined = true;
+        ttn.joined = true;
         // Disable link check validation (automatically enabled
         // during join, but because slow data rates change max TX
         // size, we don't use it in this example.
@@ -856,7 +889,7 @@ void onEvent(ev_t ev)
 #ifdef DEBUG
         Serial.println(F("EV_JOIN_FAILED"));
 #endif // DEBUG
-        ttn->joined = false;
+        ttn.joined = false;
         break;
     case EV_REJOIN_FAILED:
 #ifdef DEBUG
@@ -864,7 +897,7 @@ void onEvent(ev_t ev)
 #endif // DEBUG
         break;
     case EV_TXCOMPLETE:
-        ttn->storeSequenceNumberUp(LMIC.seqnoUp);
+        ttn.storeSequenceNumberUp(LMIC.seqnoUp);
 #ifdef DEBUG
         Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
         if (LMIC.txrxFlags & TXRX_ACK)
@@ -891,16 +924,16 @@ void onEvent(ev_t ev)
             {
                 downlink[i - LMIC.dataBeg] = LMIC.frame[i];
             }
-            if (ttn->messageCallback)
+            if (ttn.messageCallback)
             {
-                ttn->messageCallback(downlink, LMIC.dataLen, LMIC.rssi);
+                ttn.messageCallback(downlink, LMIC.dataLen, LMIC.rssi);
             }
         }
         // Schedule next transmission
         /*	if (cyclique)
                 {
                         os_setTimedCallback(&sendjob, os_getTime() +
-           sec2osticks(TX_INTERVAL), ttn->txMessage);
+           sec2osticks(TX_INTERVAL), ttn.txMessage);
                 }*/
         break;
     case EV_LOST_TSYNC:
@@ -912,7 +945,7 @@ void onEvent(ev_t ev)
 #ifdef DEBUG
         Serial.println(F("EV_RESET"));
 #endif // DEBUG
-        ttn->joined = false;
+        ttn.joined = false;
         break;
     case EV_RXCOMPLETE:
 #ifdef DEBUG
@@ -921,7 +954,7 @@ void onEvent(ev_t ev)
 #endif // DEBUG
         break;
     case EV_LINK_DEAD:
-        ttn->joined = false;
+        ttn.joined = false;
 #ifdef DEBUG
         Serial.println(F("EV_LINK_DEAD"));
 #endif // DEBUG
@@ -948,8 +981,13 @@ void onEvent(ev_t ev)
     default:
 #ifdef DEBUG
         Serial.print(F("Unknown event: "));
-        Serial.println((unsigned)ev);
+        Serial.println((unsigned)event);
 #endif // DEBUG
         break;
+    }
+
+    if (ttn.eventCallback)
+    {
+        ttn.eventCallback(event);
     }
 }
