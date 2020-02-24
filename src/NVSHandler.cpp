@@ -22,7 +22,10 @@ bool NVSHandler::openNvsRead(const char* partition, HandleCloser& handleCloser)
     {
         ESP_LOGW(TAG, "NVS storage is not initialized. Call 'nvs_flash_init()' first.");
     }
-    ESP_ERROR_CHECK(result);
+    else
+    {
+        ESP_ERROR_CHECK(result);
+    }
     return result == ESP_OK;
 }
 
@@ -36,7 +39,10 @@ bool NVSHandler::openNvsWrite(const char* partition, HandleCloser& handleCloser)
     {
         ESP_LOGW(TAG, "NVS storage is not initialized. Call 'nvs_flash_init()' first.");
     }
-    ESP_ERROR_CHECK(result);
+    else
+    {
+        ESP_ERROR_CHECK(result);
+    }
     return result == ESP_OK;
 }
 
@@ -75,7 +81,10 @@ bool NVSHandler::readNvsValue(
         }
     }
 
-    ESP_ERROR_CHECK(result);
+    if (result != ESP_ERR_NVS_NOT_FOUND)
+    {
+        ESP_ERROR_CHECK(result);
+    }
     return success;
 }
 
