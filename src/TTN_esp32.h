@@ -167,7 +167,7 @@ public:
     /// @param confirm Whether to ask for confirmation, default 0(false)
     ///
     void sendBytesAtInterval(
-        uint8_t* payload, size_t length, unsigned interval = 60, uint8_t port = 1, uint8_t confirm = 0);
+        uint8_t* payload, size_t length, uint32_t interval = 60, uint8_t port = 1, uint8_t confirm = 0);
 
     ///
     /// Poll for incoming messages
@@ -235,14 +235,26 @@ public:
     bool hasSession();
 
     //
-    /// Store the current session so we don't need to join the network next time.
+    /// Store the current session to the NVM
     ///
     /// Stores the device address, network session key and application router session key
     /// @param deviceAddress The device address
     /// @param networkSessionKey The network session key
     /// @param applicationRouterSessionKey The application router session key
+    /// @return True if successfully stored, false if not
     ///
     bool storeSession(devaddr_t deviceAddress, u1_t networkSessionKey[16], u1_t applicationRouterSessionKey[16]);
+
+    //
+    /// Get the current session from the NVM
+    ///
+    /// Gets the device address, network session key and application router session key
+    /// @param deviceAddress The device address
+    /// @param networkSessionKey The network session key
+    /// @param applicationRouterSessionKey The application router session key
+    /// @return True if successfully loaded, false if not
+    ///
+    bool getSession(char* deviceAddress, char* networkSessionKey, char* applicationRouterSessionKey);
 
     ///
     /// Deletes the current session from NVM
@@ -275,11 +287,14 @@ public:
     bool restoreKeys(bool silent = true);
 
     //
-    /// Store the current sequence number
+    /// Store the current sequence number in NVM
     ///
-    /// @param sequenceNumber The sequence number
+    bool storeSequenceNumberUp();
+
+    //
+    /// Get the current sequence number from NVM
     ///
-    bool storeSequenceNumberUp(uint32_t sequenceNumber);
+    uint32_t getSequenceNumberUp();
 
     ///
     /// Show the current status
@@ -310,7 +325,7 @@ public:
     ///
     /// @param interval The interval to set
     ///
-    void setTXInterval(const unsigned interval);
+    void setTXInterval(const uint32_t interval);
 
     ///
     /// Copy the Application EUI into the given buffer
@@ -376,7 +391,7 @@ private:
     ///
     TTN_esp32();
     bool txBytes(uint8_t* payload, size_t length, uint8_t port, uint8_t confirm);
-    void txMessage(osjob_t* j);
+    void txMessage(osjob_t* job);
     void personalize(u4_t netID, u4_t DevAddr, uint8_t* NwkSKey, uint8_t* AppSKey);
     bool decode(bool includeDevEui, const char* devEui, const char* appEui, const char* appKey);
     void checkKeys();
@@ -413,10 +428,6 @@ protected:
     uint8_t dev_eui[8];
     uint8_t app_eui[8];
     uint8_t app_key[16];
-    uint8_t app_session_key[16];
-    uint8_t net_session_key[16];
-    uint8_t dev_adr[4];
-    uint32_t sequenceNumberUp;
     bool joined;
 
 private:
@@ -427,6 +438,9 @@ private:
     uint8_t _length;
     uint8_t _port;
     uint8_t _confirm;
+    uint32_t txInterval;
+    bool cyclique;
+    osjob_t sendjob;
 
 private:
     static TTN_esp32* instance;

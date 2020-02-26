@@ -15,9 +15,12 @@
 
 #define LOOP_TTN_MS 1
 
-static unsigned TX_INTERVAL = 0;
-static bool cyclique = false;
-static osjob_t sendjob;
+/// The last sent sequence number we know, stored in RTC memory
+RTC_DATA_ATTR uint32_t sequenceNumberUp = 0;
+RTC_DATA_ATTR uint8_t app_session_key[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+RTC_DATA_ATTR uint8_t net_session_key[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+RTC_DATA_ATTR uint8_t dev_adr[4] = {0, 0, 0, 0};
+
 // static osjobcb_t sendMsg;
 TTN_esp32* TTN_esp32::instance = 0;
 
@@ -29,13 +32,15 @@ TTN_esp32* TTN_esp32::instance = 0;
 // The order is swapped in provisioning_decode_keys().
 void os_getArtEui(u1_t* buf)
 {
-    memcpy(buf, TTN_esp32::getInstance().app_eui, 8);
+    TTN_esp32& ttn = TTN_esp32::getInstance();
+    std::copy(ttn.app_eui, ttn.app_eui + 8, buf);
 }
 
 // This should also be in little endian format, see above.
 void os_getDevEui(u1_t* buf)
 {
-    memcpy(buf, TTN_esp32::getInstance().dev_eui, 8);
+    TTN_esp32& ttn = TTN_esp32::getInstance();
+    std::copy(ttn.dev_eui, ttn.dev_eui + 8, buf);
 }
 
 // This key should be in big endian format (or, since it is not really a number
@@ -43,7 +48,8 @@ void os_getDevEui(u1_t* buf)
 // taken from ttnctl can be copied as-is.
 void os_getDevKey(u1_t* buf)
 {
-    memcpy(buf, TTN_esp32::getInstance().app_key, 16);
+    TTN_esp32& ttn = TTN_esp32::getInstance();
+    std::copy(ttn.app_key, ttn.app_key + 16, buf);
 }
 
 /************
@@ -64,10 +70,6 @@ TTN_esp32::TTN_esp32()
     : dev_eui {0, 0, 0, 0, 0, 0, 0, 0},
       app_eui {0, 0, 0, 0, 0, 0, 0, 0},
       app_key {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      app_session_key {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      net_session_key {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      dev_adr {0, 0, 0, 0},
-      sequenceNumberUp {0},
       joined {false},
       provisioned {false},
       session {false},
@@ -75,7 +77,9 @@ TTN_esp32::TTN_esp32()
       _message {0},
       _length {1},
       _port {1},
-      _confirm {0}
+      _confirm {0},
+      txInterval {0},
+      cyclique {false}
 {
     // restoreKeys();
 }
@@ -160,7 +164,8 @@ bool TTN_esp32::join()
         restoreKeys();
     }
 
-    if (session)
+    // Check if this is a cold boot
+    if (session && sequenceNumberUp != 0)
     {
         Serial.println("Using stored session to join");
         devaddr_t dev_addr = dev_adr[0] << 24 | dev_adr[1] << 16 | dev_adr[2] << 8 | dev_adr[3];
@@ -250,10 +255,10 @@ bool TTN_esp32::sendBytes(uint8_t* payload, size_t length, uint8_t port, uint8_t
     return txBytes(payload, length, port, confirm);
 }
 
-void TTN_esp32::sendBytesAtInterval(uint8_t* payload, size_t length, unsigned interval, uint8_t port, uint8_t confirm)
+void TTN_esp32::sendBytesAtInterval(uint8_t* payload, size_t length, uint32_t interval, uint8_t port, uint8_t confirm)
 {
     cyclique = (interval != 0) ? true : false;
-    TX_INTERVAL = interval;
+    txInterval = interval;
     txBytes(payload, length, port, confirm);
 }
 
@@ -312,22 +317,25 @@ bool TTN_esp32::storeSession(devaddr_t deviceAddress, u1_t networkSessionKey[16]
     bool success = session;
     if (!session)
     {
-        dev_adr[0] = (deviceAddress >> 24) & 0xFF;
-        dev_adr[1] = (deviceAddress >> 16) & 0xFF;
-        dev_adr[2] = (deviceAddress >> 8) & 0xFF;
-        dev_adr[3] = deviceAddress & 0xFF;
+        uint8_t dev_adr_buf[4];
+        dev_adr_buf[0] = (deviceAddress >> 24) & 0xFF;
+        dev_adr_buf[1] = (deviceAddress >> 16) & 0xFF;
+        dev_adr_buf[2] = (deviceAddress >> 8) & 0xFF;
+        dev_adr_buf[3] = deviceAddress & 0xFF;
 
-        std::copy(networkSessionKey, networkSessionKey + 16, net_session_key);
-        std::copy(applicationRouterSessionKey, applicationRouterSessionKey + 16, app_session_key);
+        uint8_t net_session_key_buf[16];
+        uint8_t app_session_key_buf[16];
+        std::copy(networkSessionKey, networkSessionKey + 16, net_session_key_buf);
+        std::copy(applicationRouterSessionKey, applicationRouterSessionKey + 16, app_session_key_buf);
 
         HandleCloser handleCloser {};
         if (NVSHandler::openNvsWrite(NVS_FLASH_PARTITION, handleCloser))
         {
-            if (NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_DEV_ADDR, dev_adr, sizeof(dev_adr))
+            if (NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_DEV_ADDR, dev_adr_buf, sizeof(dev_adr_buf))
                 && NVSHandler::writeNvsValue(
-                    handleCloser, NVS_FLASH_KEY_NWK_SESSION_KEY, net_session_key, sizeof(net_session_key))
+                    handleCloser, NVS_FLASH_KEY_NWK_SESSION_KEY, net_session_key_buf, sizeof(net_session_key_buf))
                 && NVSHandler::writeNvsValue(
-                    handleCloser, NVS_FLASH_KEY_APP_SESSION_KEY, app_session_key, sizeof(app_session_key)))
+                    handleCloser, NVS_FLASH_KEY_APP_SESSION_KEY, app_session_key_buf, sizeof(app_session_key_buf)))
             {
                 success = session = NVSHandler::commit(handleCloser);
                 if (success)
@@ -336,6 +344,31 @@ bool TTN_esp32::storeSession(devaddr_t deviceAddress, u1_t networkSessionKey[16]
                     ESP_LOGI(TAG, "Session saved in NVS storage");
                 }
             }
+        }
+    }
+    return success;
+}
+
+bool TTN_esp32::getSession(char* deviceAddress, char* networkSessionKey, char* applicationRouterSessionKey)
+{
+    bool success = false;
+    HandleCloser handleCloser {};
+    if (NVSHandler::openNvsRead(NVS_FLASH_PARTITION, handleCloser))
+    {
+        uint8_t buf_dev_adr[4];
+        uint8_t buf_net_s_key[16];
+        uint8_t buf_app_s_key[16];
+
+        if (NVSHandler::readNvsValue(handleCloser, NVS_FLASH_KEY_DEV_ADDR, buf_dev_adr, sizeof(dev_adr))
+            && NVSHandler::readNvsValue(
+                handleCloser, NVS_FLASH_KEY_NWK_SESSION_KEY, buf_net_s_key, sizeof(net_session_key))
+            && NVSHandler::readNvsValue(
+                handleCloser, NVS_FLASH_KEY_APP_SESSION_KEY, buf_app_s_key, sizeof(app_session_key)))
+        {
+            std::copy(buf_dev_adr, buf_dev_adr + 4, deviceAddress);
+            std::copy(buf_net_s_key, buf_net_s_key + 16, networkSessionKey);
+            std::copy(buf_app_s_key, buf_app_s_key + 16, applicationRouterSessionKey);
+            success = true;
         }
     }
     return success;
@@ -361,24 +394,12 @@ bool TTN_esp32::saveKeys()
     HandleCloser handleCloser {};
     if (NVSHandler::openNvsWrite(NVS_FLASH_PARTITION, handleCloser))
     {
-        uint8_t buf_seq_num[4];
-        buf_seq_num[0] = (sequenceNumberUp >> 24) & 0xFF;
-        buf_seq_num[1] = (sequenceNumberUp >> 16) & 0xFF;
-        buf_seq_num[2] = (sequenceNumberUp >> 8) & 0xFF;
-        buf_seq_num[3] = sequenceNumberUp & 0xFF;
-
         if (NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_DEV_EUI, dev_eui, sizeof(dev_eui))
             && NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_APP_EUI, app_eui, sizeof(app_eui))
-            && NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_APP_KEY, app_key, sizeof(app_key))
-            && NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_DEV_ADDR, dev_adr, sizeof(dev_adr))
-            && NVSHandler::writeNvsValue(
-                handleCloser, NVS_FLASH_KEY_NWK_SESSION_KEY, net_session_key, sizeof(net_session_key))
-            && NVSHandler::writeNvsValue(
-                handleCloser, NVS_FLASH_KEY_APP_SESSION_KEY, app_session_key, sizeof(app_session_key))
-            && NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_SEQ_NUM_UP, buf_seq_num, sizeof(buf_seq_num)))
+            && NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_APP_KEY, app_key, sizeof(app_key)))
         {
             success = NVSHandler::commit(handleCloser);
-            ESP_LOGI(TAG, "Dev and app EUI and app key saved in NVS storage");
+            ESP_LOGI(TAG, "Dev EUI, app EUI and app key saved in NVS storage");
         }
     }
 
@@ -394,31 +415,13 @@ bool TTN_esp32::restoreKeys(bool silent)
         uint8_t buf_app_eui[8];
         uint8_t buf_app_key[16];
 
-        uint8_t buf_dev_adr[4];
-        uint8_t buf_net_s_key[16];
-        uint8_t buf_app_s_key[16];
-        uint8_t buf_seq_num[4];
-
         if (NVSHandler::readNvsValue(handleCloser, NVS_FLASH_KEY_DEV_EUI, buf_dev_eui, sizeof(dev_eui), silent)
             && NVSHandler::readNvsValue(handleCloser, NVS_FLASH_KEY_APP_EUI, buf_app_eui, sizeof(app_eui), silent)
-            && NVSHandler::readNvsValue(handleCloser, NVS_FLASH_KEY_APP_KEY, buf_app_key, sizeof(app_key), silent)
-            && NVSHandler::readNvsValue(handleCloser, NVS_FLASH_KEY_DEV_ADDR, buf_dev_adr, sizeof(dev_adr), silent)
-            && NVSHandler::readNvsValue(
-                handleCloser, NVS_FLASH_KEY_NWK_SESSION_KEY, buf_net_s_key, sizeof(net_session_key), silent)
-            && NVSHandler::readNvsValue(
-                handleCloser, NVS_FLASH_KEY_APP_SESSION_KEY, buf_app_s_key, sizeof(app_session_key), silent)
-            && NVSHandler::readNvsValue(
-                handleCloser, NVS_FLASH_KEY_SEQ_NUM_UP, buf_seq_num, sizeof(buf_seq_num), silent))
+            && NVSHandler::readNvsValue(handleCloser, NVS_FLASH_KEY_APP_KEY, buf_app_key, sizeof(app_key), silent))
         {
-            memcpy(dev_eui, buf_dev_eui, sizeof(dev_eui));
-            memcpy(app_eui, buf_app_eui, sizeof(app_eui));
-            memcpy(app_key, buf_app_key, sizeof(app_key));
-
-            memcpy(dev_adr, buf_dev_adr, sizeof(dev_adr));
-            memcpy(net_session_key, buf_net_s_key, sizeof(net_session_key));
-            memcpy(app_session_key, buf_app_s_key, sizeof(app_session_key));
-
-            sequenceNumberUp = buf_seq_num[0] << 24 | buf_seq_num[1] << 16 | buf_seq_num[2] << 8 | buf_seq_num[3];
+            std::copy(buf_dev_eui, buf_dev_eui + 8, dev_eui);
+            std::copy(buf_app_eui, buf_app_eui + 8, app_eui);
+            std::copy(buf_app_key, buf_app_key + 16, app_key);
 
             checkKeys();
 
@@ -434,15 +437,14 @@ bool TTN_esp32::restoreKeys(bool silent)
         else
         {
             Serial.println("[restoreKeys] Could not load keys");
-            provisioned = session = false;
+            provisioned = false;
         }
     }
     return provisioned;
 }
 
-bool TTN_esp32::storeSequenceNumberUp(uint32_t sequenceNumber)
+bool TTN_esp32::storeSequenceNumberUp()
 {
-    sequenceNumberUp = sequenceNumber;
     bool success = false;
     HandleCloser handleCloser {};
     if (NVSHandler::openNvsWrite(NVS_FLASH_PARTITION, handleCloser))
@@ -452,7 +454,6 @@ bool TTN_esp32::storeSequenceNumberUp(uint32_t sequenceNumber)
         buf_seq_num[1] = (sequenceNumberUp >> 16) & 0xFF;
         buf_seq_num[2] = (sequenceNumberUp >> 8) & 0xFF;
         buf_seq_num[3] = sequenceNumberUp & 0xFF;
-
         if (NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_SEQ_NUM_UP, buf_seq_num, sizeof(buf_seq_num)))
         {
             success = NVSHandler::commit(handleCloser);
@@ -465,6 +466,22 @@ bool TTN_esp32::storeSequenceNumberUp(uint32_t sequenceNumber)
     }
 
     return success;
+}
+
+uint32_t getSequenceNumberUp()
+{
+    uint32_t number = 0;
+    HandleCloser handleCloser {};
+    if (NVSHandler::openNvsRead(NVS_FLASH_PARTITION, handleCloser))
+    {
+        uint8_t buf_seq_num[4];
+        if (NVSHandler::readNvsValue(handleCloser, NVS_FLASH_KEY_SEQ_NUM_UP, buf_seq_num, sizeof(buf_seq_num)))
+        {
+            number = buf_seq_num[0] << 24 | buf_seq_num[1] << 16 | buf_seq_num[2] << 8 | buf_seq_num[3];
+        }
+    }
+
+    return number;
 }
 
 void TTN_esp32::showStatus()
@@ -516,10 +533,10 @@ bool TTN_esp32::setDataRate(uint8_t rate)
     return true;
 }
 
-void TTN_esp32::setTXInterval(unsigned interval = 60)
+void TTN_esp32::setTXInterval(uint32_t interval = 60)
 {
     /*_interval=INTERVAL;*/
-    TX_INTERVAL = interval;
+    txInterval = interval;
 }
 
 size_t TTN_esp32::getAppEui(char* buffer, size_t size)
@@ -662,7 +679,7 @@ bool TTN_esp32::txBytes(uint8_t* payload, size_t length, uint8_t port, uint8_t c
     return true;
 }
 
-void TTN_esp32::txMessage(osjob_t* j)
+void TTN_esp32::txMessage(osjob_t* job)
 {
     if (joined)
     {
@@ -775,10 +792,10 @@ bool TTN_esp32::decode(bool includeDevEui, const char* devEui, const char* appEu
 
     if (includeDevEui)
     {
-        memcpy(dev_eui, buf_dev_eui, sizeof(dev_eui));
+        std::copy(buf_dev_eui, buf_dev_eui + 8, dev_eui);
     }
-    memcpy(app_eui, buf_app_eui, sizeof(app_eui));
-    memcpy(app_key, buf_app_key, sizeof(app_key));
+    std::copy(buf_app_eui, buf_app_eui + 8, app_eui);
+    std::copy(buf_app_key, buf_app_key + 16, app_key);
 
     checkKeys();
 
@@ -850,7 +867,13 @@ void onEvent(ev_t event)
         u1_t nwkKey[16];
         u1_t artKey[16];
         LMIC_getSessionKeys(&netid, &devaddr, nwkKey, artKey);
-        ttn.storeSession(devaddr, nwkKey, artKey);
+        // ttn.storeSession(devaddr, nwkKey, artKey);
+        std::copy(nwkKey, nwkKey + 16, net_session_key);
+        std::copy(artKey, artKey + 16, app_session_key);
+        dev_adr[0] = (devaddr >> 24) & 0xFF;
+        dev_adr[1] = (devaddr >> 16) & 0xFF;
+        dev_adr[2] = (devaddr >> 8) & 0xFF;
+        dev_adr[3] = devaddr & 0xFF;
 #ifdef DEBUG
         Serial.println(F("EV_JOINED"));
         Serial.print("netid: ");
@@ -897,7 +920,8 @@ void onEvent(ev_t event)
 #endif // DEBUG
         break;
     case EV_TXCOMPLETE:
-        ttn.storeSequenceNumberUp(LMIC.seqnoUp);
+        sequenceNumberUp = LMIC.seqnoUp;
+        // ttn.storeSequenceNumberUp();
 #ifdef DEBUG
         Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
         if (LMIC.txrxFlags & TXRX_ACK)
@@ -920,10 +944,7 @@ void onEvent(ev_t event)
 #endif // DEBUG
 
             uint8_t downlink[LMIC.dataLen];
-            for (byte i = LMIC.dataBeg; i < LMIC.dataBeg + LMIC.dataLen; i++)
-            {
-                downlink[i - LMIC.dataBeg] = LMIC.frame[i];
-            }
+            std::copy(LMIC.frame, LMIC.frame + LMIC.dataLen, downlink);
             if (ttn.messageCallback)
             {
                 ttn.messageCallback(downlink, LMIC.dataLen, LMIC.rssi);
@@ -932,8 +953,8 @@ void onEvent(ev_t event)
         // Schedule next transmission
         /*	if (cyclique)
                 {
-                        os_setTimedCallback(&sendjob, os_getTime() +
-           sec2osticks(TX_INTERVAL), ttn.txMessage);
+                        os_setTimedCallback(&ttn.sendjob, os_getTime() +
+           sec2osticks(txInterval), ttn.txMessage);
                 }*/
         break;
     case EV_LOST_TSYNC:
