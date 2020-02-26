@@ -26,7 +26,7 @@ public:
     static bool openNvsWrite(const char* partition, HandleCloser& handleCloser);
     static bool commit(HandleCloser& HandleCloser);
     static bool readNvsValue(
-        HandleCloser& handleCloser, const char* key, uint8_t* data, size_t expected_length, bool silent);
+        HandleCloser& handleCloser, const char* key, uint8_t* data, size_t expected_length, bool silent = true);
     static bool writeNvsValue(HandleCloser& handleCloser, const char* key, const uint8_t* data, size_t len);
 
 private:
