@@ -54,8 +54,8 @@ void print_wakeup_reason()
 
 void waitForTransactions()
 {
-    Serial.print("Waiting for pending transactions... ");
-    Serial.println(" took " + String(ttn.waitForPendingTransactions()) + "ms");
+    Serial.println("Waiting for pending transactions... ");
+    Serial.println("Waiting took " + String(ttn.waitForPendingTransactions()) + "ms");
 }
 
 void sendData()
@@ -90,7 +90,7 @@ void setup()
         Serial.print(".");
         delay(500);
     }
-    Serial.println("\njoined !");
+    Serial.println("\njoined!");
 
     // Make sure any pending transactions are handled first
     waitForTransactions();
