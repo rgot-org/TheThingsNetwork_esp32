@@ -136,14 +136,20 @@ bool TTN_esp32::provision(const char* appEui, const char* appKey)
     Serial.println();
 #endif // DEBUG
 
-    return decode(false, nullptr, appEui, appKey);
-    // saveKeys();
+    if (decode(false, nullptr, appEui, appKey))
+    {
+        return saveKeys();
+    }
+    return false;
 }
 
 bool TTN_esp32::provision(const char* devEui, const char* appEui, const char* appKey)
 {
-    return decode(true, devEui, appEui, appKey);
-    // saveKeys();
+    if (decode(true, devEui, appEui, appKey))
+    {
+        return saveKeys();
+    }
+    return false;
 }
 
 bool TTN_esp32::provisionABP(const char* devAddr, const char* nwkSKey, const char* appSKey)
@@ -151,8 +157,7 @@ bool TTN_esp32::provisionABP(const char* devAddr, const char* nwkSKey, const cha
     ByteArrayUtils::hexStrToBin(nwkSKey, net_session_key, 16);
     ByteArrayUtils::hexStrToBin(appSKey, app_session_key, 16);
     ByteArrayUtils::hexStrToBin(devAddr, dev_adr, 4);
-    // saveKeys();
-    return true;
+    return saveKeys();
 }
 
 bool TTN_esp32::join()
@@ -167,29 +172,24 @@ bool TTN_esp32::join()
     // Check if this is a cold boot
     if (session && sequenceNumberUp != 0)
     {
-        Serial.println("Using stored session to join");
+        Serial.println(F("Using stored session to join"));
         devaddr_t dev_addr = dev_adr[0] << 24 | dev_adr[1] << 16 | dev_adr[2] << 8 | dev_adr[3];
         personalize(0x13, dev_addr, net_session_key, app_session_key);
         success = true;
     }
     else if (provisioned)
     {
-        Serial.println("Using stored keys to join");
+        Serial.println(F("Using stored keys to join"));
         LMIC_setClockError(MAX_CLOCK_ERROR * 7 / 100);
         LMIC_unjoin();
         LMIC_startJoining();
-
-#ifdef DEBUG
-        Serial.println("joined");
-#endif // DEBUG
-
         xTaskCreatePinnedToCore(loopStack, "ttnTask", 2048, (void*)1, (5 | portPRIVILEGE_BIT), TTN_task_Handle, 1);
         success = true;
     }
     else
     {
         ESP_LOGW(TAG, "Device EUI, App EUI and/or App key have not been provided");
-        Serial.println("No keys provided");
+        Serial.println(F("Cannot join. No keys provided"));
     }
     return success;
 }
@@ -198,6 +198,7 @@ bool TTN_esp32::join(const char* appEui, const char* appKey, bool force, int8_t 
 {
     // if(!provision(appEui, appKey)) return false;
     restoreKeys();
+    force = force || (std::equal(app_eui, app_eui + 8, appEui) && std::equal(app_key, app_key + 16, appKey));
     if (force || !provisioned)
     {
         provision(appEui, appKey);
@@ -209,6 +210,9 @@ bool TTN_esp32::join(
     const char* devEui, const char* appEui, const char* appKey, bool force, int8_t retries, uint32_t retryDelay)
 {
     restoreKeys();
+    force = force
+        || (std::equal(dev_eui, dev_eui + 8, devEui) && std::equal(app_eui, app_eui + 8, appEui)
+            && std::equal(app_key, app_key + 16, appKey));
     if (force || !provisioned)
     {
         provision(devEui, appEui, appKey);
@@ -242,8 +246,8 @@ bool TTN_esp32::personalize(const char* devAddr, const char* nwkSKey, const char
     ByteArrayUtils::hexStrToBin(devAddr, dev_adr, 4);
     devaddr_t dev_addr = dev_adr[0] << 24 | dev_adr[1] << 16 | dev_adr[2] << 8 | dev_adr[3];
 #ifdef DEBUG
-    Serial.printf("str_deva: %s\n", devAddr);
-    Serial.printf("int_devaddr: %X\n", dev_addr);
+    Serial.printf("Dev adr str: %s\n", devAddr);
+    Serial.printf("Dev adr int: %X\n", dev_addr);
 #endif // DEBUG
     personalize(0x13, dev_addr, net_session_key, app_session_key);
     return true;
@@ -340,7 +344,7 @@ bool TTN_esp32::storeSession(devaddr_t deviceAddress, u1_t networkSessionKey[16]
                 success = session = NVSHandler::commit(handleCloser);
                 if (success)
                 {
-                    Serial.println("Successfully stored session");
+                    Serial.println(F("Successfully stored session"));
                     ESP_LOGI(TAG, "Session saved in NVS storage");
                 }
             }
@@ -379,7 +383,6 @@ void TTN_esp32::deleteSession()
     memset(dev_adr, 0, sizeof(dev_adr));
     memset(net_session_key, 0, sizeof(net_session_key));
     memset(app_session_key, 0, sizeof(app_session_key));
-    saveKeys();
 }
 
 bool TTN_esp32::isProvisioned()
@@ -436,7 +439,6 @@ bool TTN_esp32::restoreKeys(bool silent)
         }
         else
         {
-            Serial.println("[restoreKeys] Could not load keys");
             provisioned = false;
         }
     }
@@ -459,7 +461,7 @@ bool TTN_esp32::storeSequenceNumberUp()
             success = NVSHandler::commit(handleCloser);
             if (success)
             {
-                Serial.println("Successfully stored sequence number");
+                Serial.println(F("Successfully stored sequence number"));
                 ESP_LOGI(TAG, "Sequence number saved in NVS storage");
             }
         }
@@ -687,7 +689,7 @@ void TTN_esp32::txMessage(osjob_t* job)
         if (LMIC.opmode & OP_TXRXPEND)
         {
 #ifdef DEBUG
-            Serial.println(F("OP_TXRXPEND, not sending"));
+            Serial.println(F("Pending transaction, not sending"));
 #endif // DEBUG
         }
         else
@@ -703,7 +705,7 @@ void TTN_esp32::txMessage(osjob_t* job)
 #ifdef DEBUG
     else
     {
-        Serial.println("Not connected/joined to TTN");
+        Serial.println(F("Not connected/joined to TTN"));
     }
 #endif // DEBUG
 }
@@ -811,8 +813,25 @@ void TTN_esp32::checkKeys()
         && !ByteArrayUtils::isAllZeros(app_session_key, sizeof(app_session_key))
         && !ByteArrayUtils::isAllZeros(net_session_key, sizeof(net_session_key)) && sequenceNumberUp != 0x00;
 
-    Serial.println("[checkKeys] " + String(provisioned ? "provisioned " : "unprovisioned ")
-        + String(session ? "session" : "no session"));
+#ifdef DEBUG
+    Serial.print(F("[checkKeys] "));
+    if (provisioned)
+    {
+        Serial.print(F("provisioned, "));
+    }
+    else
+    {
+        Serial.print(F("unprovisioned, "));
+    }
+    if (session)
+    {
+        Serial.println(F("session "));
+    }
+    else
+    {
+        Serial.println(F("no session "));
+    }
+#endif
 }
 
 void TTN_esp32::loopStack(void* parameter)
@@ -824,41 +843,31 @@ void TTN_esp32::loopStack(void* parameter)
     }
 }
 
+static const char* const eventNames[] = {LMIC_EVENT_NAME_TABLE__INIT};
+
 void onEvent(ev_t event)
 {
     TTN_esp32& ttn = TTN_esp32::getInstance();
 #ifdef DEBUG
     Serial.print(os_getTime());
     Serial.print(": ");
+    // get event message
+    if (event < sizeof(eventNames) / sizeof(eventNames[0]))
+    {
+        Serial.print("[Event] ");
+        Serial.println((eventNames[event] + 3)); // +3 to strip "EV_"
+    }
+    else
+    {
+        Serial.print("[Event] Unknown: ");
+        Serial.println(event);
+    }
 #endif // DEBUG
 
     switch (event)
     {
-    case EV_SCAN_TIMEOUT:
-#ifdef DEBUG
-        Serial.println(F("EV_SCAN_TIMEOUT"));
-#endif // DEBUG
-        break;
-    case EV_BEACON_FOUND:
-#ifdef DEBUG
-        Serial.println(F("EV_BEACON_FOUND"));
-#endif // DEBUG
-        break;
-    case EV_BEACON_MISSED:
-#ifdef DEBUG
-        Serial.println(F("EV_BEACON_MISSED"));
-#endif // DEBUG
-        break;
-    case EV_BEACON_TRACKED:
-#ifdef DEBUG
-        Serial.println(F("EV_BEACON_TRACKED"));
-#endif // DEBUG
-        break;
     case EV_JOINING:
         ttn.joined = false;
-#ifdef DEBUG
-        Serial.println(F("EV_JOINING"));
-#endif // DEBUG
         break;
     case EV_JOINED:
     {
@@ -867,7 +876,6 @@ void onEvent(ev_t event)
         u1_t nwkKey[16];
         u1_t artKey[16];
         LMIC_getSessionKeys(&netid, &devaddr, nwkKey, artKey);
-        // ttn.storeSession(devaddr, nwkKey, artKey);
         std::copy(nwkKey, nwkKey + 16, net_session_key);
         std::copy(artKey, artKey + 16, app_session_key);
         dev_adr[0] = (devaddr >> 24) & 0xFF;
@@ -878,7 +886,7 @@ void onEvent(ev_t event)
         Serial.println(F("EV_JOINED"));
         Serial.print("netid: ");
         Serial.println(netid, DEC);
-        Serial.print("devaddr: ");
+        Serial.print("devAdr: ");
         Serial.println(devaddr, HEX);
         Serial.print("artKey: ");
         for (size_t i = 0; i < sizeof(artKey); ++i)
@@ -891,39 +899,21 @@ void onEvent(ev_t event)
         {
             Serial.print(nwkKey[i], HEX);
         }
+        Serial.println();
 #endif // DEBUG
     }
         ttn.joined = true;
         // Disable link check validation (automatically enabled
         // during join, but because slow data rates change max TX
-        // size, we don't use it in this example.
-
+        // size, we don't use it in this example.)
         LMIC_setLinkCheckMode(0);
         break;
-        /*
-        || This event is defined but not used in the code. No
-        || point in wasting codespace on it.
-        ||
-        || case EV_RFU1:
-        ||     Serial.println(F("EV_RFU1"));
-        ||     break;
-        */
     case EV_JOIN_FAILED:
-#ifdef DEBUG
-        Serial.println(F("EV_JOIN_FAILED"));
-#endif // DEBUG
         ttn.joined = false;
-        break;
-    case EV_REJOIN_FAILED:
-#ifdef DEBUG
-        Serial.println(F("EV_REJOIN_FAILED"));
-#endif // DEBUG
         break;
     case EV_TXCOMPLETE:
         sequenceNumberUp = LMIC.seqnoUp;
-        // ttn.storeSequenceNumberUp();
 #ifdef DEBUG
-        Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
         if (LMIC.txrxFlags & TXRX_ACK)
         {
             Serial.println(F("Received ack"));
@@ -943,67 +933,27 @@ void onEvent(ev_t event)
             Serial.println(JSONMessage);
 #endif // DEBUG
 
-            uint8_t downlink[LMIC.dataLen];
-            std::copy(LMIC.frame, LMIC.frame + LMIC.dataLen, downlink);
             if (ttn.messageCallback)
             {
+                uint8_t downlink[LMIC.dataLen];
+                std::copy(LMIC.frame, LMIC.frame + LMIC.dataLen, downlink);
                 ttn.messageCallback(downlink, LMIC.dataLen, LMIC.rssi);
             }
         }
         // Schedule next transmission
-        /*	if (cyclique)
-                {
-                        os_setTimedCallback(&ttn.sendjob, os_getTime() +
-           sec2osticks(txInterval), ttn.txMessage);
-                }*/
-        break;
-    case EV_LOST_TSYNC:
-#ifdef DEBUG
-        Serial.println(F("EV_LOST_TSYNC"));
-#endif // DEBUG
+        // if (cyclique)
+        // {
+        //     os_setTimedCallback(&ttn.sendjob, os_getTime() + sec2osticks(txInterval), ttn.txMessage);
+        // }
         break;
     case EV_RESET:
-#ifdef DEBUG
-        Serial.println(F("EV_RESET"));
-#endif // DEBUG
         ttn.joined = false;
-        break;
-    case EV_RXCOMPLETE:
-#ifdef DEBUG
-        // data received in ping slot
-        Serial.println(F("EV_RXCOMPLETE"));
-#endif // DEBUG
         break;
     case EV_LINK_DEAD:
         ttn.joined = false;
-#ifdef DEBUG
-        Serial.println(F("EV_LINK_DEAD"));
-#endif // DEBUG
-        break;
-    case EV_LINK_ALIVE:
-#ifdef DEBUG
-        Serial.println(F("EV_LINK_ALIVE"));
-#endif // DEBUG
-        break;
-    /*
-    || This event is defined but not used in the code. No
-    || point in wasting codespace on it.
-    ||
-    || case EV_SCAN_FOUND:
-    ||    Serial.println(F("EV_SCAN_FOUND"));
-    ||    break;
-    */
-    case EV_TXSTART:
-#ifdef DEBUG
-        Serial.println(F("EV_TXSTART"));
-#endif // DEBUG
         break;
 
     default:
-#ifdef DEBUG
-        Serial.print(F("Unknown event: "));
-        Serial.println((unsigned)event);
-#endif // DEBUG
         break;
     }
 
