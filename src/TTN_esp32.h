@@ -21,11 +21,16 @@ class TTN_esp32
 {
 public:
     ///
+    /// Default constructor
+    /// Silently tries to restore the keys
+    ///
+    TTN_esp32();
+    ///
     /// Get the instance of TTN_esp32
     ///
     /// @return The singleton instance of TTN_esp32
     ///
-    static TTN_esp32& getInstance();
+    static TTN_esp32* getInstance();
 
     ///
     /// Disallow copying
@@ -384,12 +389,7 @@ public:
     int8_t getTXPower();
 
 private:
-    ///
-    /// Default constructor
-    /// Silently tries to restore the keys
-    /// private since this is a singleton
-    ///
-    TTN_esp32();
+
     bool txBytes(uint8_t* payload, size_t length, uint8_t port, uint8_t confirm);
     void txMessage(osjob_t* job);
     void personalize(u4_t netID, u4_t DevAddr, uint8_t* NwkSKey, uint8_t* AppSKey);
@@ -443,7 +443,7 @@ private:
     osjob_t sendjob;
 
 private:
-    static TTN_esp32* instance;
+    static TTN_esp32* _instance;
 };
 
 #endif

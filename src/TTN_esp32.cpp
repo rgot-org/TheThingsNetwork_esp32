@@ -22,7 +22,7 @@ RTC_DATA_ATTR uint8_t net_session_key[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 RTC_DATA_ATTR uint8_t dev_adr[4] = {0, 0, 0, 0};
 
 // static osjobcb_t sendMsg;
-TTN_esp32* TTN_esp32::instance = 0;
+TTN_esp32* TTN_esp32::_instance = 0;
 
 // --- LMIC callbacks
 
@@ -32,15 +32,15 @@ TTN_esp32* TTN_esp32::instance = 0;
 // The order is swapped in provisioning_decode_keys().
 void os_getArtEui(u1_t* buf)
 {
-    TTN_esp32& ttn = TTN_esp32::getInstance();
-    std::copy(ttn.app_eui, ttn.app_eui + 8, buf);
+    TTN_esp32* ttn = TTN_esp32::getInstance();
+    std::copy(ttn->app_eui, ttn->app_eui + 8, buf);
 }
 
 // This should also be in little endian format, see above.
 void os_getDevEui(u1_t* buf)
 {
-    TTN_esp32& ttn = TTN_esp32::getInstance();
-    std::copy(ttn.dev_eui, ttn.dev_eui + 8, buf);
+    TTN_esp32* ttn = TTN_esp32::getInstance();
+    std::copy(ttn->dev_eui, ttn->dev_eui + 8, buf);
 }
 
 // This key should be in big endian format (or, since it is not really a number
@@ -48,26 +48,22 @@ void os_getDevEui(u1_t* buf)
 // taken from ttnctl can be copied as-is.
 void os_getDevKey(u1_t* buf)
 {
-    TTN_esp32& ttn = TTN_esp32::getInstance();
-    std::copy(ttn.app_key, ttn.app_key + 16, buf);
+    TTN_esp32* ttn = TTN_esp32::getInstance();
+    std::copy(ttn->app_key, ttn->app_key + 16, buf);
 }
 
 /************
  * Public
  ************/
 
-TTN_esp32& TTN_esp32::getInstance()
+TTN_esp32* TTN_esp32::getInstance()
 {
-    if (instance == 0)
-    {
-        instance = new TTN_esp32();
-    }
-    return *instance;
+    return _instance;
 }
 
 // --- Constructor
-TTN_esp32::TTN_esp32()
-    : dev_eui {0, 0, 0, 0, 0, 0, 0, 0},
+TTN_esp32::TTN_esp32() :
+	  dev_eui {0, 0, 0, 0, 0, 0, 0, 0},
       app_eui {0, 0, 0, 0, 0, 0, 0, 0},
       app_key {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
       joined {false},
@@ -82,6 +78,7 @@ TTN_esp32::TTN_esp32()
       cyclique {false}
 {
     // restoreKeys();
+    _instance = this;
 }
 
 bool TTN_esp32::begin()
@@ -847,7 +844,7 @@ static const char* const eventNames[] = {LMIC_EVENT_NAME_TABLE__INIT};
 
 void onEvent(ev_t event)
 {
-    TTN_esp32& ttn = TTN_esp32::getInstance();
+    TTN_esp32* ttn = TTN_esp32::getInstance();
 #ifdef DEBUG
     Serial.print(os_getTime());
     Serial.print(": ");
@@ -867,7 +864,7 @@ void onEvent(ev_t event)
     switch (event)
     {
     case EV_JOINING:
-        ttn.joined = false;
+        ttn->joined = false;
         break;
     case EV_JOINED:
     {
@@ -902,14 +899,14 @@ void onEvent(ev_t event)
         Serial.println();
 #endif // DEBUG
     }
-        ttn.joined = true;
+        ttn->joined = true;
         // Disable link check validation (automatically enabled
         // during join, but because slow data rates change max TX
         // size, we don't use it in this example.)
         LMIC_setLinkCheckMode(0);
         break;
     case EV_JOIN_FAILED:
-        ttn.joined = false;
+        ttn->joined = false;
         break;
     case EV_TXCOMPLETE:
         sequenceNumberUp = LMIC.seqnoUp;
@@ -933,11 +930,11 @@ void onEvent(ev_t event)
             Serial.println(JSONMessage);
 #endif // DEBUG
 
-            if (ttn.messageCallback)
+            if (ttn->messageCallback)
             {
                 uint8_t downlink[LMIC.dataLen];
                 std::copy(LMIC.frame, LMIC.frame + LMIC.dataLen, downlink);
-                ttn.messageCallback(downlink, LMIC.dataLen, LMIC.rssi);
+                ttn->messageCallback(downlink, LMIC.dataLen, LMIC.rssi);
             }
         }
         // Schedule next transmission
@@ -947,18 +944,18 @@ void onEvent(ev_t event)
         // }
         break;
     case EV_RESET:
-        ttn.joined = false;
+        ttn->joined = false;
         break;
     case EV_LINK_DEAD:
-        ttn.joined = false;
+        ttn->joined = false;
         break;
 
     default:
         break;
     }
 
-    if (ttn.eventCallback)
+    if (ttn->eventCallback)
     {
-        ttn.eventCallback(event);
+        ttn->eventCallback(event);
     }
 }
