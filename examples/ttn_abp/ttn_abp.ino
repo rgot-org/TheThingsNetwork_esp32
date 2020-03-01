@@ -2,14 +2,14 @@
 
 #include "TTN_CayenneLPP.h"
 /***************************************************************************
-*  Go to your TTN console register a device then the copy fields 
-*  and replace the CHANGE_ME strings below
-****************************************************************************/
-const char *devAddr = "CHANGE_ME"; // Change to TTN Device Address
-const char *nwkSKey = "CHANGE_ME"; // Change to TTN Network Session Key
-const char *appSKey = "CHANGE_ME"; // Change to TTN Application Session Key
+ *  Go to your TTN console register a device then the copy fields
+ *  and replace the CHANGE_ME strings below
+ ****************************************************************************/
+const char* devAddr = "CHANGE_ME"; // Change to TTN Device Address
+const char* nwkSKey = "CHANGE_ME"; // Change to TTN Network Session Key
+const char* appSKey = "CHANGE_ME"; // Change to TTN Application Session Key
 
-TTN_esp32 ttn;
+TTN_esp32& ttn = TTN_esp32::getInstance();
 TTN_CayenneLPP lpp;
 
 void message(const uint8_t* payload, size_t size, int rssi)

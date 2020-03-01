@@ -248,46 +248,58 @@ static s4_t delta_time(u4_t time) {
     return (s4_t)(time - hal_ticks());
 }
 
-//void hal_waitUntil (u4_t time) {
-//    s4_t delta = delta_time(time);
-//    // From delayMicroseconds docs: Currently, the largest value that
-//    // will produce an accurate delay is 16383.
-//    while (delta > (16000 / US_PER_OSTICK)) {
-//        delay(16);
-//        delta -= (16000 / US_PER_OSTICK);
-//    }
-//    if (delta > 0)
-//        delayMicroseconds(delta * US_PER_OSTICK);
-//}
+// deal with boards that are stressed by no-interrupt delays #529, etc.
+#if defined(ARDUINO_DISCO_L072CZ_LRWAN1)
+# define HAL_WAITUNTIL_DOWNCOUNT_MS 16      // on this board, 16 ms works better
+# define HAL_WAITUNTIL_DOWNCOUNT_THRESH ms2osticks(16)  // as does this threashold.
+#else
+# define HAL_WAITUNTIL_DOWNCOUNT_MS 8       // on most boards, delay for 8 ms
+# define HAL_WAITUNTIL_DOWNCOUNT_THRESH ms2osticks(9) // but try to leave a little slack for final timing.
+#endif
 
-u4_t hal_waitUntil(u4_t time) {
-	s4_t delta = delta_time(time);
-	// check for already too late.
-	if (delta < 0)
-		return -delta;
+u4_t hal_waitUntil (u4_t time) {
+    s4_t delta = delta_time(time);
+    // check for already too late.
+    if (delta < 0)
+        return -delta;
 
-	// From delayMicroseconds docs: Currently, the largest value that
-	// will produce an accurate delay is 16383. Also, STM32 does a better
-	// job with delay is less than 10,000 us; so reduce in steps.
-	// It's nice to use delay() for the longer times.
-	while (delta > (9000 / US_PER_OSTICK)) {
-		// deliberately delay 8ms rather than 9ms, so we
-		// will exit loop with delta typically positive.
-		// Depends on BSP keeping time accurately even if interrupts
-		// are disabled.
-		delay(8);
-		// re-synchronize.
-		delta = delta_time(time);
-	}
+    // From delayMicroseconds docs: Currently, the largest value that
+    // will produce an accurate delay is 16383. Also, STM32 does a better
+    // job with delay is less than 10,000 us; so reduce in steps.
+    // It's nice to use delay() for the longer times.
+	  while (delta > HAL_WAITUNTIL_DOWNCOUNT_THRESH) {
+        // deliberately delay 8ms rather than 9ms, so we
+        // will exit loop with delta typically positive.
+        // Depends on BSP keeping time accurately even if interrupts
+        // are disabled.
+        delay(HAL_WAITUNTIL_DOWNCOUNT_MS);
+        // re-synchronize.
+        delta = delta_time(time);
+    }
 
-	// unluckily, delayMicroseconds() isn't very accurate.
-	// so spin using delta_time().
-	while (delta_time(time) > 0)
-		/* loop */;
+    // The radio driver runs with interrupt disabled, and this can
+    // mess up timing APIs on some platforms. If we know the BSP feature
+    // set, we can decide whether to use delta_time() [more exact,
+    // but not always possible with interrupts off], or fall back to
+    // delay_microseconds() [less exact, but more universal]
 
-	// we aren't "late". Callers are interested in gross delays, not
-	// necessarily delays due to poor timekeeping here.
-	return 0;
+#if defined(_mcci_arduino_version)
+    // unluckily, delayMicroseconds() isn't very accurate.
+  	// but delta_time() works with interrupts disabled.
+    // so spin using delta_time().
+    while (delta_time(time) > 0)
+        /* loop */;
+#else // ! defined(_mcci_arduino_version)
+	  // on other BSPs, we need to stick with the older way,
+  	// until we fix the radio driver to run with interrupts
+  	// enabled.
+  	if (delta > 0)
+        delayMicroseconds(delta * US_PER_OSTICK);
+#endif // ! defined(_mcci_arduino_version)
+
+    // we aren't "late". Callers are interested in gross delays, not
+    // necessarily delays due to poor timekeeping here.
+    return 0;
 }
 
 // check and rewind for target time
@@ -387,12 +399,11 @@ void hal_init_ex (const void *pContext) {
 
 // C++ API: initialize the HAL properly with a configuration object
 namespace TTN_esp32_LMIC {
-bool hal_init_with_pinmap(const HalPinmap_t *pPinmap)
-    {
-	if (pPinmap == nullptr) {
-		hal_failed(__FILE__, __LINE__);
-		return false;
-	}
+bool hal_init_with_pinmap(const HalPinmap_t *pPinmap) {
+    if (pPinmap == nullptr) {
+        hal_failed(__FILE__, __LINE__);
+        return false;
+    }
 
     // set the static pinmap pointer.
     plmic_pins = pPinmap;
