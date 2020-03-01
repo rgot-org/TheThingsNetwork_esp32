@@ -9,7 +9,7 @@ const char* devEui = "CHANGE_ME"; // Change to TTN Device EUI
 const char* appEui = "CHANGE_ME"; // Change to TTN Application EUI
 const char* appKey = "CHANGE_ME"; // Chaneg to TTN Application Key
 
-TTN_esp32& ttn = TTN_esp32::getInstance();
+TTN_esp32 ttn ;
 TTN_CayenneLPP lpp;
 
 void message(const uint8_t* payload, size_t size, int rssi)
