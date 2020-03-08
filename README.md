@@ -74,7 +74,12 @@ return DevEUI as String
 
 - `bool hardwareEui=false`: if true get DevEUI from Mac Address.
 
-
+## Method: `isJoined`
+Check whether we have joined TTN
+```c
+ bool isJoined();
+```
+return `true` if joined to TTN, `false` if not.
 ## Method: `showStatus`
 
 Writes information about the device and LoRa module to `Serial` .
