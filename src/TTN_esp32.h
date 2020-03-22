@@ -15,7 +15,7 @@
 #include "lmic/lmic.h"
 #include "lmic/lmic/oslmic.h"
 
-#define DEBUG
+//#define DEBUG
 
 class TTN_esp32
 {
@@ -114,7 +114,7 @@ public:
     /// @param retryDelay The delay in milliseconds between each retry
     ///
     bool join(
-        const char* appEui, const char* appKey, bool force = false, int8_t retries = -1, uint32_t retryDelay = 10000);
+        const char* appEui, const char* appKey, bool force = true, int8_t retries = -1, uint32_t retryDelay = 10000);
 
     ///
     /// Join the TTN
@@ -130,7 +130,7 @@ public:
     /// @param retries The number of retries until timeout
     /// @param retryDelay The delay in milliseconds between each retry
     ///
-    bool join(const char* devEui, const char* appEui, const char* appKey, bool force = false, int8_t retries = -1,
+    bool join(const char* devEui, const char* appEui, const char* appKey, bool force = true, int8_t retries = -1,
         uint32_t retryDelay = 10000);
 
     ///
@@ -190,8 +190,8 @@ public:
     ///
     /// @return True if task was stopped
     ///
-    bool stopTNN(void);
-
+    bool stop(void);
+    bool isRunning(void);
     ///
     /// Sets a function which will be called to process incoming messages
     ///
@@ -290,16 +290,21 @@ public:
     /// @param silent Set to false for debug output
     ///
     bool restoreKeys(bool silent = true);
+    ///
+    /// Erase the Device EUI, Application EUI, Application key,
+    /// Device address, Network session key and Application session key
+    /// in the non volatile memory. All the bytes are 00.
+    ///
+    bool eraseKeys();
+    //
+    /// Store the current frame counter in NVM
+    ///
+    bool storeFrameCounter();
 
     //
-    /// Store the current sequence number in NVM
+    /// Get the current frame counter from NVM
     ///
-    bool storeSequenceNumberUp();
-
-    //
-    /// Get the current sequence number from NVM
-    ///
-    uint32_t getSequenceNumberUp();
+    uint32_t getFrameCounter();
 
     ///
     /// Show the current status
@@ -388,6 +393,13 @@ public:
     /// @return The transmit power
     int8_t getTXPower();
 
+    bool setDevEui(byte* value);
+    bool setAppEui(byte* value);
+    bool setAppKey(byte* value);
+    size_t getDevEui(byte* buf);
+    size_t getAppEui(byte* buf);
+    size_t getAppKey(byte* buf);
+
 private:
 
     bool txBytes(uint8_t* payload, size_t length, uint8_t port, uint8_t confirm);
@@ -433,7 +445,7 @@ protected:
 private:
     bool provisioned;
     bool session;
-    TaskHandle_t* TTN_task_Handle;
+    TaskHandle_t TTN_task_Handle;
     uint8_t* _message;
     uint8_t _length;
     uint8_t _port;

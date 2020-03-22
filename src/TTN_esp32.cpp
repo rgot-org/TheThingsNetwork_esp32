@@ -180,7 +180,7 @@ bool TTN_esp32::join()
         LMIC_setClockError(MAX_CLOCK_ERROR * 7 / 100);
         LMIC_unjoin();
         LMIC_startJoining();
-        xTaskCreatePinnedToCore(loopStack, "ttnTask", 2048, (void*)1, (5 | portPRIVILEGE_BIT), TTN_task_Handle, 1);
+        xTaskCreatePinnedToCore(loopStack, "ttnTask", 2048, (void*)1, (5 | portPRIVILEGE_BIT), &TTN_task_Handle, 1);
         success = true;
     }
     else
@@ -203,8 +203,7 @@ bool TTN_esp32::join(const char* appEui, const char* appKey, bool force, int8_t 
     return join();
 }
 
-bool TTN_esp32::join(
-    const char* devEui, const char* appEui, const char* appKey, bool force, int8_t retries, uint32_t retryDelay)
+bool TTN_esp32::join( const char* devEui, const char* appEui, const char* appKey, bool force, int8_t retries, uint32_t retryDelay)
 {
     restoreKeys();
     force = force
@@ -243,8 +242,8 @@ bool TTN_esp32::personalize(const char* devAddr, const char* nwkSKey, const char
     ByteArrayUtils::hexStrToBin(devAddr, dev_adr, 4);
     devaddr_t dev_addr = dev_adr[0] << 24 | dev_adr[1] << 16 | dev_adr[2] << 8 | dev_adr[3];
 #ifdef DEBUG
-    Serial.printf("Dev adr str: %s\n", devAddr);
-    Serial.printf("Dev adr int: %X\n", dev_addr);
+    ESP-LOGI(TAG,"Dev adr str: %s", devAddr);
+    ESP_LOGI(TAG,"Dev adr int: %X", dev_addr);
 #endif // DEBUG
     personalize(0x13, dev_addr, net_session_key, app_session_key);
     return true;
@@ -268,11 +267,23 @@ bool TTN_esp32::poll(uint8_t port, uint8_t confirm)
     return sendBytes(0, 1, port, confirm);
 }
 
-bool TTN_esp32::stopTNN()
+bool TTN_esp32::stop()
 {
+    ESP_LOGI(TAG, "ttn_task=%d", TTN_task_Handle);
     if (TTN_task_Handle != NULL)
     {
+        ESP_LOGI(TAG, "delete ttn task");
         vTaskDelete(TTN_task_Handle);
+        TTN_task_Handle = NULL;
+    }
+    return true;
+}
+
+bool TTN_esp32::isRunning(void)
+{
+    if (TTN_task_Handle == NULL)
+    {
+        return false;
     }
     return true;
 }
@@ -442,7 +453,25 @@ bool TTN_esp32::restoreKeys(bool silent)
     return provisioned;
 }
 
-bool TTN_esp32::storeSequenceNumberUp()
+bool TTN_esp32::eraseKeys()
+{
+    bool success = false;
+    uint8_t emptyBuf[16] = {0};
+    HandleCloser handleCloser {};
+    if (NVSHandler::openNvsWrite(NVS_FLASH_PARTITION, handleCloser))
+    {
+        if (NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_DEV_EUI, emptyBuf, sizeof(dev_eui))
+            && NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_APP_EUI, emptyBuf, sizeof(app_eui))
+            && NVSHandler::writeNvsValue(handleCloser, NVS_FLASH_KEY_APP_KEY, emptyBuf, sizeof(app_key)))
+        {
+            success = NVSHandler::commit(handleCloser);
+            ESP_LOGI(TAG, "Dev EUI, app EUI and app key erased in NVS storage");
+        }
+    }
+    return success;
+}
+
+bool TTN_esp32::storeFrameCounter()
 {
     bool success = false;
     HandleCloser handleCloser {};
@@ -458,8 +487,8 @@ bool TTN_esp32::storeSequenceNumberUp()
             success = NVSHandler::commit(handleCloser);
             if (success)
             {
-                Serial.println(F("Successfully stored sequence number"));
-                ESP_LOGI(TAG, "Sequence number saved in NVS storage");
+                //Serial.println(F("Successfully stored sequence number"));
+                ESP_LOGI(TAG, "Frame counter saved in NVS storage");
             }
         }
     }
@@ -467,7 +496,7 @@ bool TTN_esp32::storeSequenceNumberUp()
     return success;
 }
 
-uint32_t getSequenceNumberUp()
+uint32_t TTN_esp32::getFrameCounter()
 {
     uint32_t number = 0;
     HandleCloser handleCloser {};
@@ -577,14 +606,14 @@ size_t TTN_esp32::getDevEui(char* buffer, size_t size, bool hardwareEUI)
         uint8_t mac[6];
         esp_err_t err = esp_efuse_mac_get_default(mac);
         ESP_ERROR_CHECK(err);
-        buf[7] = mac[0];
+        buf[7] = mac[0]; 
         buf[6] = mac[1];
         buf[5] = mac[2];
         buf[4] = 0xff;
         buf[3] = 0xfe;
         buf[2] = mac[3];
         buf[1] = mac[4];
-        buf[0] = mac[5];
+        buf[0] = mac[5]+2;// mac address for blueTooth see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/system.html#mac-address
     }
     else
     {
@@ -656,6 +685,43 @@ uint32_t TTN_esp32::getFrequency()
 int8_t TTN_esp32::getTXPower()
 {
     return LMIC.txpow;
+}
+
+bool TTN_esp32::setDevEui(byte* value)
+{
+    memcpy(dev_eui, value, 8);
+    return true;
+}
+
+bool TTN_esp32::setAppEui(byte* value)
+{
+    memcpy(app_eui, value, 8);
+    return true;
+}
+
+bool TTN_esp32::setAppKey(byte* value)
+{
+    memcpy(app_key, value, 16);
+    return true;
+}
+size_t TTN_esp32::getDevEui(byte* buf)
+{
+    memcpy(buf, dev_eui, 8);
+    ByteArrayUtils::swapBytes(buf, 8);
+    return 8;
+}
+
+size_t TTN_esp32::getAppEui(byte* buf)
+{
+    memcpy(buf, app_eui, 8);
+    ByteArrayUtils::swapBytes(buf, 8);
+    return 8;
+}
+
+size_t TTN_esp32::getAppKey(byte* buf)
+{
+    memcpy(buf, app_key, 16);
+    return 16;
 }
 
 /************
@@ -755,7 +821,7 @@ void TTN_esp32::personalize(u4_t netID, u4_t DevAddr, uint8_t* NwkSKey, uint8_t*
 
     // Start job
     joined = true;
-    xTaskCreatePinnedToCore(loopStack, "ttnTask", 2048, (void*)1, (5 | portPRIVILEGE_BIT), TTN_task_Handle, 1);
+    xTaskCreatePinnedToCore(loopStack, "ttnTask", 2048, (void*)1, (5 | portPRIVILEGE_BIT), &TTN_task_Handle, 1);
 }
 
 bool TTN_esp32::decode(bool includeDevEui, const char* devEui, const char* appEui, const char* appKey)
