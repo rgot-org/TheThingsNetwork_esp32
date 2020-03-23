@@ -613,7 +613,7 @@ size_t TTN_esp32::getDevEui(char* buffer, size_t size, bool hardwareEUI)
         buf[3] = 0xfe;
         buf[2] = mac[3];
         buf[1] = mac[4];
-        buf[0] = mac[5]+2;// mac address for blueTooth see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/system.html#mac-address
+        buf[0] = mac[5];
     }
     else
     {
