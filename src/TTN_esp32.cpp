@@ -999,7 +999,8 @@ void onEvent(ev_t event)
             if (ttn->messageCallback)
             {
                 uint8_t downlink[LMIC.dataLen];
-                std::copy(LMIC.frame, LMIC.frame + LMIC.dataLen, downlink);
+				uint8_t offset = 9;// offset to get data.
+                std::copy(LMIC.frame+offset, LMIC.frame+offset + LMIC.dataLen, downlink);
                 ttn->messageCallback(downlink, LMIC.dataLen, LMIC.rssi);
             }
         }
