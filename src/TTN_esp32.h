@@ -196,7 +196,7 @@ public:
     /// Sets a function which will be called to process incoming messages
     ///
     /// You'll want to do this in your setup() function and then define a void (*callback)(const byte* payload, size_t
-    /// length, port_t port) function somewhere else in your sketch.
+    /// length, int rssi) function somewhere else in your sketch.
     ///
     /// @param callback The callback which gets called
     ///
