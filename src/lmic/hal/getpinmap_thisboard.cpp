@@ -66,8 +66,8 @@ namespace TTN_esp32_LMIC
         return GetPinmap_heltec_wireless_stick(); //
 #elif defined(ARDUINO_M5STACK_FIRE)
         return GetPinmap_M5stack_Lora();
-//#elif defined(LORA_RST)
-//		return GetPinmap_ttgo_TBEAM();
+#elif defined(ARDUINO_TBeam)
+		return GetPinmap_ttgo_TBEAM();
 #else
 
 #pragma message("Board not supported -- use an explicit pinmap")
