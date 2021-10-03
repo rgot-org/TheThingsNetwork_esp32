@@ -870,7 +870,7 @@ bool TTN_esp32::decode(bool includeDevEui, const char* devEui, const char* appEu
 void TTN_esp32::checkKeys()
 {
     provisioned = !ByteArrayUtils::isAllZeros(dev_eui, sizeof(dev_eui))
-        && !ByteArrayUtils::isAllZeros(app_eui, sizeof(app_eui))
+        //&& !ByteArrayUtils::isAllZeros(app_eui, sizeof(app_eui))
         && !ByteArrayUtils::isAllZeros(app_key, sizeof(app_key));
     session = !ByteArrayUtils::isAllZeros(dev_adr, sizeof(dev_adr))
         && !ByteArrayUtils::isAllZeros(app_session_key, sizeof(app_session_key))
