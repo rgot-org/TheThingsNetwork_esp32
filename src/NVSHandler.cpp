@@ -7,6 +7,9 @@
 #include "WProgram.h"
 
 #endif
+#ifndef TAG
+	#define TAG "ARDUINO"
+#endif
 
 bool NVSHandler::openNvsRead(const char* partition, HandleCloser& handleCloser)
 {
