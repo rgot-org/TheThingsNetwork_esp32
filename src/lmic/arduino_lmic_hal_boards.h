@@ -21,6 +21,7 @@ Author:
 #include "lmic/arduino_lmic_hal_configuration.h"
 
 namespace TTN_esp32_LMIC {
+
 const HalPinmap_t *GetPinmap_FeatherM0LoRa();
 const HalPinmap_t *GetPinmap_Feather32U4LoRa();
 
@@ -34,12 +35,17 @@ const HalPinmap_t *GetPinmap_Catena4617();
 const HalPinmap_t *GetPinmap_Catena4618();
 const HalPinmap_t *GetPinmap_Catena4630();
 const HalPinmap_t *GetPinmap_Catena4801();
-const HalPinmap_t *GetPinmap_ttgo_lora32_v1 ();
+const HalPinmap_t *GetPinmap_Catena4802();
+const HalPinmap_t* GetPinmap_ttgo_lora32_v1();
+const HalPinmap_t *GetPinmap_ttgo_lora32_v21();
+const HalPinmap_t* GetPinmap_heltec_lora32();
+const HalPinmap_t* GetPinmap_Disco_L072cz_Lrwan1();
 const HalPinmap_t *GetPinmap_heltec_wifi_lora_32();
 const HalPinmap_t *GetPinmap_heltec_wifi_lora_32_V2();
 const HalPinmap_t *GetPinmap_heltec_wireless_stick();
 const HalPinmap_t *GetPinmap_M5stack_Lora();
 const HalPinmap_t *GetPinmap_ttgo_TBEAM();
+
 
 const HalPinmap_t *GetPinmap_ThisBoard();
 

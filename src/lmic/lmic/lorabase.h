@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2016 IBM Corporation.
- * Copyritght (c) 2017 MCCI Corporation.
+ * Copyright (c) 2017-2021 MCCI Corporation.
  * All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -60,7 +60,7 @@ enum { ILLEGAL_RPS = 0xFF };
 
 // Global maximum frame length
 enum { STD_PREAMBLE_LEN  =  8 };
-enum { MAX_LEN_FRAME     =  LMIC_ENABLE_long_messages ? 255 : 64 };
+enum { MAX_LEN_FRAME     =  LMIC_MAX_FRAME_LENGTH };
 enum { LEN_DEVNONCE      =  2 };
 enum { LEN_ARTNONCE      =  3 };
 enum { LEN_NETID         =  3 };
@@ -445,6 +445,13 @@ enum {
     LEN_JA          = 17,
     LEN_JAEXT       = 17+16
 };
+
+enum {
+    // JoinAccept CFList types
+    LORAWAN_JoinAccept_CFListType_FREQUENCIES = 0,  ///< the CFList contains 5 frequencies
+    LORAWAN_JoinAccept_CFListType_MASK = 1,         ///< the CFList contains channel-mask data
+};
+
 enum {
     // Data frame format
     OFF_DAT_HDR      = 0,
@@ -582,20 +589,20 @@ enum {
 
 // Bit fields byte#3 of MCMD_LinkADRReq payload
 enum {
-    MCMD_LinkADRReq_Redundancy_RFU            = 0x80,
-    MCMD_LinkADRReq_Redundancy_ChMaskCntl_MASK= 0x70,
-    MCMD_LinkADRReq_Redundancy_NbTrans_MASK   = 0x0F,
+    MCMD_LinkADRReq_Redundancy_RFU            = 0x80,   ///< mask for RFU bit
+    MCMD_LinkADRReq_Redundancy_ChMaskCntl_MASK= 0x70,   ///< mask for the channel-mask control field.
+    MCMD_LinkADRReq_Redundancy_NbTrans_MASK   = 0x0F,   ///< mask for the `NbTrans` (repetition) field.
 
-    MCMD_LinkADRReq_ChMaskCntl_EULIKE_DIRECT  = 0x00,    // direct masking for EU
-    MCMD_LinkADRReq_ChMaskCntl_EULIKE_ALL_ON  = 0x60,    // EU: enable everything.
+    MCMD_LinkADRReq_ChMaskCntl_EULIKE_DIRECT  = 0x00,    ///< EU-like: direct masking for EU
+    MCMD_LinkADRReq_ChMaskCntl_EULIKE_ALL_ON  = 0x60,    ///< EU-like: enable everything.
 
-    MCMD_LinkADRReq_ChMaskCntl_USLIKE_500K    = 0x40,    // mask is for the 8 us-like 500 kHz channels
-    MCMD_LinkADRReq_ChMaskCntl_USLIKE_SPECIAL = 0x50,    // first special for us-like
-    MCMD_LinkADRReq_ChMaskCntl_USLIKE_BANK    = 0x50,    // special: bits are banks.
-    MCMD_LinkADRReq_ChMaskCntl_USLIKE_125ON   = 0x60,    // special channel page enable, bits applied to 64..71
-    MCMD_LinkADRReq_ChMaskCntl_USLIKE_125OFF  = 0x70,    // special channel page: disble 125K, bits apply to 64..71
+    MCMD_LinkADRReq_ChMaskCntl_USLIKE_500K    = 0x40,    ///< US-like: mask is for the 8 us-like 500 kHz channels
+    MCMD_LinkADRReq_ChMaskCntl_USLIKE_SPECIAL = 0x50,    ///< US-like: first special for us-like
+    MCMD_LinkADRReq_ChMaskCntl_USLIKE_BANK    = 0x50,    ///< US-like: special: bits are banks.
+    MCMD_LinkADRReq_ChMaskCntl_USLIKE_125ON   = 0x60,    ///< US-like: special channel page enable, bits applied to 64..71
+    MCMD_LinkADRReq_ChMaskCntl_USLIKE_125OFF  = 0x70,    ///< US-like: special channel page: disable 125K, bits apply to 64..71
 
-    MCMD_LinkADRReq_ChMaskCntl_CN470_ALL_ON   = 0x60,    // turn all on for China.
+    MCMD_LinkADRReq_ChMaskCntl_CN470_ALL_ON   = 0x60,    ///< CN-470: turn all on for China.
 };
 
 // Bit fields byte#0 of MCMD_LinkADRReq payload
@@ -638,17 +645,8 @@ static inline rps_t makeRps (sf_t sf, bw_t bw, cr_t cr, int ih, int nocrc) {
 #define MAKERPS(sf,bw,cr,ih,nocrc) ((rps_t)((sf) | ((bw)<<3) | ((cr)<<5) | ((nocrc)?(1<<7):0) | ((ih&0xFF)<<8)))
 // Two frames with params r1/r2 would interfere on air: same SFx + BWx
 static inline int sameSfBw(rps_t r1, rps_t r2) { return ((r1^r2)&0x1F) == 0; }
-
-extern CONST_TABLE(u1_t, _DR2RPS_CRC)[];
-static inline rps_t updr2rps (dr_t dr) { return (rps_t)TABLE_GET_U1(_DR2RPS_CRC, dr+1); }
-static inline rps_t dndr2rps (dr_t dr) { return setNocrc(updr2rps(dr),1); }
 static inline int isFasterDR (dr_t dr1, dr_t dr2) { return dr1 > dr2; }
 static inline int isSlowerDR (dr_t dr1, dr_t dr2) { return dr1 < dr2; }
-static inline dr_t  incDR    (dr_t dr) { return TABLE_GET_U1(_DR2RPS_CRC, dr+2)==ILLEGAL_RPS ? dr : (dr_t)(dr+1); } // increase data rate
-static inline dr_t  decDR    (dr_t dr) { return TABLE_GET_U1(_DR2RPS_CRC, dr  )==ILLEGAL_RPS ? dr : (dr_t)(dr-1); } // decrease data rate
-static inline dr_t  assertDR (dr_t dr) { return TABLE_GET_U1(_DR2RPS_CRC, dr+1)==ILLEGAL_RPS ? (dr_t)DR_DFLTMIN : dr; }   // force into a valid DR
-static inline bit_t validDR  (dr_t dr) { return TABLE_GET_U1(_DR2RPS_CRC, dr+1)!=ILLEGAL_RPS; } // in range
-static inline dr_t  lowerDR  (dr_t dr, u1_t n) { while(n--){dr=decDR(dr);} return dr; } // decrease data rate by n steps
 
 //
 // BEG: Keep in sync with lorabase.hpp

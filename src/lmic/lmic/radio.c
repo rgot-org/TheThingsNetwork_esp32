@@ -26,6 +26,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+//! \file
+
 #define LMIC_DR_LEGACY 0
 
 #include "lmic.h"
@@ -1070,10 +1072,26 @@ static void startrx (u1_t rxmode) {
     // or timed out, and the corresponding IRQ will inform us about completion.
 }
 
-// get random seed from wideband noise rssi
+//! \brief Initialize radio at system startup.
+//!
+//! \details This procedure is called during initialization by the `os_init()`
+//! routine. It does a hardware reset of the radio, checks the version and confirms
+//! that we're operating a suitable chip, and gets a random seed from wideband
+//! noise rssi. It then puts the radio to sleep.
+//!
+//! \result True if successful, false if it doesn't look like the right radio is attached.
+//!
+//! \pre
+//! Preconditions must be observed, or you'll get hangs during initialization.
+//!
+//! - The `hal_pin_..()` functions must be ready for use.
+//! - The `hal_waitUntl()` function must be ready for use. This may mean that interrupts
+//!   are enabled.
+//! - The `hal_spi_..()` functions must be ready for use.
+//!
+//! Generally, all these are satisfied by a call to `hal_init_with_pinmap()`.
+//!
 int radio_init () {
-    hal_disableIRQs();
-
     requestModuleActive(1);
 
     // manually reset radio
@@ -1136,7 +1154,6 @@ int radio_init () {
 
     opmode(OPMODE_SLEEP);
 
-    hal_enableIRQs();
     return 1;
 }
 
@@ -1155,20 +1172,25 @@ u1_t radio_rand1 () {
 }
 
 s2_t radio_rssi () {
-    hal_disableIRQs();
     //u1_t r = readReg(LORARegRssiValue);
-	s2_t r = (s2_t) (0x00FF & (u2_t)readReg(LORARegRssiValue));
-    hal_enableIRQs();
+	s2_t r = (s2_t)(0x00FF & (u2_t)readReg(LORARegRssiValue));
+
     return r;
 }
 
-// monitor rssi for specified number of ostime_t ticks, and return statistics
-// This puts the radio into RX continuous mode, waits long enough for the
-// oscillators to start and the PLL to lock, and then measures for the specified
-// period of time.  The radio is then returned to idle.
-//
-// RSSI returned is expressed in units of dB, and is offset according to the
-// current radio setting per section 5.5.5 of Semtech 1276 datasheet.
+/// \brief get the current RSSI on the current channel.
+///
+/// monitor rssi for specified number of ostime_t ticks, and return statistics
+/// This puts the radio into RX continuous mode, waits long enough for the
+/// oscillators to start and the PLL to lock, and then measures for the specified
+/// period of time.  The radio is then returned to idle.
+///
+/// RSSI returned is expressed in units of dB, and is offset according to the
+/// current radio setting per section 5.5.5 of Semtech 1276 datasheet.
+///
+/// \param nTicks How long to monitor
+/// \param pRssi pointer to structure to fill in with RSSI data.
+///
 void radio_monitor_rssi(ostime_t nTicks, oslmic_radio_rssi_t *pRssi) {
     uint8_t rssiMax, rssiMin;
     uint16_t rssiSum;
@@ -1206,13 +1228,8 @@ void radio_monitor_rssi(ostime_t nTicks, oslmic_radio_rssi_t *pRssi) {
     tBegin = os_getTime();
     rssiMax = 0;
 
-    /* XXX(tanupoo)
-     * In this loop, micros() in os_getTime() returns a past time sometimes.
-     * At least, it happens on Dragino LoRa Mini.
-     * the return value of micros() looks not to be stable in IRQ disabled.
-     * Once it happens, this loop never exit infinitely.
-     * In order to prevent it, it enables IRQ before calling os_getTime(),
-     * disable IRQ again after that.
+    /* Per bug report from tanupoo, it's critical that interrupts be enabled
+     * in the loop below so that `os_getTime()` always advances.
      */
     do {
         ostime_t now;
@@ -1225,10 +1242,7 @@ void radio_monitor_rssi(ostime_t nTicks, oslmic_radio_rssi_t *pRssi) {
                 rssiMin = rssiNow;
         rssiSum += rssiNow;
         ++rssiN;
-        // TODO(tmm@mcci.com) move this to os_getTime().
-        hal_enableIRQs();
         now = os_getTime();
-        hal_disableIRQs();
         notDone = now - (tBegin + nTicks) < 0;
     } while (notDone);
 
@@ -1317,8 +1331,9 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
 
             LMIC_X_DEBUG_PRINTF("RX snr=%u rssi=%d\n", LMIC.snr/4, rssi);
             // ugh compatibility requires a biased range. RSSI
-            //LMIC.rssi = (s1_t) (RSSI_OFF + (rssi < -196 ? -196 : rssi > 63 ? 63 : rssi)); // RSSI [dBm] (-196...+63)
+           // LMIC.rssi = (s1_t) (RSSI_OFF + (rssi < -196 ? -196 : rssi > 63 ? 63 : rssi)); // RSSI [dBm] (-196...+63)
 			LMIC.rssi = radio_rssi() - 157 + RSSI_OFF; // use RSSI_OFF to compensate any loss
+
         } else if( flags & IRQ_LORA_RXTOUT_MASK ) {
             // indicate timeout
             LMIC.dataLen = 0;
@@ -1371,8 +1386,32 @@ void radio_irq_handler_v2 (u1_t dio, ostime_t now) {
 #endif /* ! CFG_TxContinuousMode */
 }
 
+/*!
+
+\brief Initiate a radio operation.
+
+\param mode Selects the operation to be performed.
+
+The requested radio operation is initiated. Some operations complete
+immediately; others require hardware to do work, and don't complete until
+an interrupt occurs. In that case, `LMIC.osjob` is scheduled. Because the
+interrupt may occur right away, it's important that the caller initialize
+`LMIC.osjob` before calling this routine.
+
+- `RADIO_RST` causes the radio to be put to sleep. No interrupt follows;
+when control returns, the radio is ready for the next operation.
+
+- `RADIO_TX` and `RADIO_TX_AT` launch the transmission of a frame. An interrupt will
+occur, which will cause `LMIC.osjob` to be scheduled with its current
+function.
+
+- `RADIO_RX` and `RADIO_RX_ON` launch either single or continuous receives.
+An interrupt will occur when a packet is recieved or the receive times out,
+which will cause `LMIC.osjob` to be scheduled with its current function.
+
+*/
+
 void os_radio (u1_t mode) {
-    hal_disableIRQs();
     switch (mode) {
       case RADIO_RST:
         // put radio to sleep
@@ -1401,7 +1440,6 @@ void os_radio (u1_t mode) {
         startrx(RXMODE_SCAN); // buf=LMIC.frame
         break;
     }
-    hal_enableIRQs();
 }
 
 ostime_t os_getRadioRxRampup (void) {
