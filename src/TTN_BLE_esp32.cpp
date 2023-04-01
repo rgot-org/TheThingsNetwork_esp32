@@ -76,9 +76,7 @@ bool TTN_BLE_esp32::begin(std::string bt_name)
     ttn->restoreKeys();
     if (bt_name == "")
     {
-        char buff[20];
-        ttn->getDevEui(buff, 8, true);
-        std::string nameDev(buff);
+        std::string nameDev(ttn->getDevEui(true).c_str());
         bt_name.append("RGOT_").append(nameDev);
     }
     BLEDevice::init(bt_name);
@@ -113,8 +111,8 @@ bool TTN_BLE_esp32::begin(std::string bt_name)
     len = ttn->getAppEui(buf);
     pCharacteristicAppEUI->setValue(buf, len);
 
-    len = ttn->getAppKey(buf);
-    pCharacteristicAppKey->setValue(buf, len);
+    //len = ttn->getAppKey(buf);
+    //pCharacteristicAppKey->setValue(buf, len);
 
     pService->start();
     BLEAdvertising* pAdvertising = pServer->getAdvertising();

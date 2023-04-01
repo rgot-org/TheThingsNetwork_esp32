@@ -3,6 +3,7 @@
 
 #include "nvs_flash.h"
 
+static const char* const DEBUG = "debug";
 static const char* const TAG = "ttn_prov";
 static const char* const NVS_FLASH_PARTITION = "ttn";
 static const char* const NVS_FLASH_KEY_DEV_EUI = "devEui";
