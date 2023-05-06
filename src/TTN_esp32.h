@@ -201,7 +201,15 @@ public:
 	/// @param callback The callback which gets called
 	///
 	void onMessage(void(*callback)(const uint8_t* payload, size_t size, int rssi));
-
+	///
+	/// Sets a function which will be called to process incoming messages
+	///
+	/// You'll want to do this in your setup() function and then define a void (*callback)(const byte* payload, size_t
+	/// length, uint8_t port, int rssi) function somewhere else in your sketch.
+	///
+	/// @param callback The callback which gets called
+	///
+	void onMessage(void(*callbackPort)(const uint8_t* payload, size_t size, uint8_t port, int rssi));
 	///
 	/// Sets a function which will be called upon LMIC events occur
 	///
@@ -210,6 +218,13 @@ public:
 	/// @param callback The callback which gets called
 	///
 	void onEvent(void(*callback)(const ev_t event));
+	///
+	/// Sets a function which will be called upon LMIC confirmation (if asked for confirmation)
+	///
+	///
+	/// @param callback The callback which gets called
+	///
+	void onConfirm(void(*callback)());
 
 	///
 	/// Check whether we have joined TTN
@@ -380,6 +395,8 @@ private:
 	void checkKeys();
 	static void loopStack(void* parameter);
 	void(*messageCallback)(const uint8_t* payload, size_t size, int rssi) = NULL;
+	void(*messageCallbackPort)(const uint8_t* payload, size_t size, uint8_t port, int rssi) = NULL;
+	void(*confirmCallback)()=NULL;
 	void(*eventCallback)(const ev_t event) = NULL;
 
 	///
