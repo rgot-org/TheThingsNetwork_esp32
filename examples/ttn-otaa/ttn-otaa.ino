@@ -12,16 +12,14 @@ const char* appKey = "CHANGE_ME"; // Chaneg to TTN Application Key
 TTN_esp32 ttn ;
 TTN_CayenneLPP lpp;
 
-void message(const uint8_t* payload, size_t size, int rssi)
+void message(const uint8_t* payload, size_t size, uint8_t port, int rssi)
 {
     Serial.println("-- MESSAGE");
-    Serial.print("Received " + String(size) + " bytes RSSI=" + String(rssi) + "db");
+    Serial.printf("Received %d bytes on port %d (RSSI=%ddB) :", size, port, rssi);
     for (int i = 0; i < size; i++)
     {
-        Serial.print(" " + String(payload[i]));
-        // Serial.write(payload[i]);
+        Serial.printf(" %02X", payload[i]);
     }
-
     Serial.println();
 }
 
