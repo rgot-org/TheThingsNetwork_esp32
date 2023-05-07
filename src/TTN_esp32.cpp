@@ -21,6 +21,8 @@ RTC_DATA_ATTR uint8_t rtc_app_session_key[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 RTC_DATA_ATTR uint8_t rtc_net_session_key[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 RTC_DATA_ATTR uint8_t rtc_dev_adr[4] = { 0, 0, 0, 0 };
 
+//#define DEBUG
+
 // static osjobcb_t sendMsg;
 TTN_esp32* TTN_esp32::_instance = 0;
 
@@ -236,7 +238,7 @@ bool TTN_esp32::personalize(const char* devAddr, const char* nwkSKey, const char
 	ByteArrayUtils::hexStrToBin(devAddr, rtc_dev_adr, 4);
 	devaddr_t dev_addr = rtc_dev_adr[0] << 24 | rtc_dev_adr[1] << 16 | rtc_dev_adr[2] << 8 | rtc_dev_adr[3];
 #ifdef DEBUG
-	ESP - LOGI(TAG, "Dev adr str: %s", devAddr);
+	ESP_LOGI(TAG, "Dev adr str: %s", devAddr);
 	ESP_LOGI(TAG, "Dev adr int: %X", dev_addr);
 #endif // DEBUG
 	personalize(0x13, dev_addr, rtc_net_session_key, rtc_app_session_key);
@@ -282,10 +284,22 @@ bool TTN_esp32::isRunning(void)
 	return true;
 }
 
+
 void TTN_esp32::onMessage(void(*callback)(const uint8_t* payload, size_t size, int rssi))
 {
 	messageCallback = callback;
 }
+
+void TTN_esp32::onMessage(void(*callback)(const uint8_t* payload, size_t size, uint8_t port, int rssi))
+{
+	messageCallbackPort = callback;
+}
+
+void TTN_esp32::onConfirm(void(*callback)())
+{
+	confirmCallback = callback;
+}
+
 
 void TTN_esp32::onEvent(void(*callback)(const ev_t event))
 {
@@ -832,19 +846,27 @@ void onEvent(ev_t event)
 		break;
 	case EV_TXCOMPLETE:
 		rtc_sequenceNumberUp = LMIC.seqnoUp;
-#ifdef DEBUG
+
 		if (LMIC.txrxFlags & TXRX_ACK)
 		{
+			if (ttn->confirmCallback)
+			{
+				ttn->confirmCallback();
+			}
+#ifdef DEBUG
 			Serial.println(F("Received ack"));
-		}
 #endif // DEBUG
+		}
+
 		if (LMIC.dataLen)
 		{
 #ifdef DEBUG
 			Serial.print(F("Received "));
 			Serial.print(LMIC.dataLen);
-			Serial.println(F(" bytes of payload"));
+			Serial.print(F(" bytes of payload. FPORT: "));
+			Serial.println(LMIC.frame[LMIC.dataBeg-1]);
 			String JSONMessage = "";
+				
 			for (byte i = LMIC.dataBeg; i < LMIC.dataBeg + LMIC.dataLen; i++)
 			{
 				JSONMessage += (char)LMIC.frame[i];
@@ -855,9 +877,16 @@ void onEvent(ev_t event)
 			if (ttn->messageCallback)
 			{
 				uint8_t downlink[LMIC.dataLen];
-				uint8_t offset = LMIC.dataBeg;// offset to get data.
+				uint8_t offset = LMIC.dataBeg; //9;// offset to get data.
 				std::copy(LMIC.frame + offset, LMIC.frame + offset + LMIC.dataLen, downlink);
 				ttn->messageCallback(downlink, LMIC.dataLen, LMIC.rssi);
+			}
+			if (ttn->messageCallbackPort)
+			{
+				uint8_t downlink[LMIC.dataLen];
+				uint8_t offset = LMIC.dataBeg; //9;// offset to get data.
+				std::copy(LMIC.frame + offset, LMIC.frame + offset + LMIC.dataLen, downlink);
+				ttn->messageCallbackPort(downlink, LMIC.dataLen, LMIC.frame[LMIC.dataBeg-1], LMIC.rssi);
 			}
 		}
 		// Schedule next transmission
