@@ -111,11 +111,17 @@ bool TTN_BLE_esp32::begin(std::string bt_name)
     len = ttn->getAppEui(buf);
     pCharacteristicAppEUI->setValue(buf, len);
 
-    //len = ttn->getAppKey(buf);
-    //pCharacteristicAppKey->setValue(buf, len);
+    len = ttn->getAppKey(buf);
+    for (size_t i = 3; i < len-4; i++)
+    {
+        buf[i] = 0;
+    }
+   pCharacteristicAppKey->setValue(buf, len);
 
     pService->start();
     BLEAdvertising* pAdvertising = pServer->getAdvertising();
+    pAdvertising->addServiceUUID(SERVICE_UUID);
+    pServer->startAdvertising();
     pAdvertising->start();
     return true;
 }
